@@ -1,12 +1,11 @@
 import argv
-import envoy
+import gleam/bool
 import gleam/dynamic
 import gleam/int
 import gleam/io
 import gleam/list
 import gleam/result
 import pog
-import stork/commands
 import stork/internal/database
 import stork/internal/fs
 import stork/types
@@ -33,10 +32,11 @@ const query_drop_migration = "DELETE FROM _migrations WHERE id = $1;"
 
 pub fn main() {
   case argv.load().arguments {
-    // ["show"] -> show_last_migration()
+    ["show"] -> show()
     ["up"] -> migrate_up()
     ["down"] -> migrate_down()
-    [x] ->
+    ["last"] -> migrate_to_last()
+    ["to", x] ->
       case int.parse(x) {
         Error(_) -> show_usage()
         Ok(mig) -> migrate_to(mig)
@@ -68,51 +68,90 @@ fn show_usage() -> Result(Nil, types.MigrateError) {
   Ok(Nil)
 }
 
-pub fn migrate_up() {
+pub fn migrate_up() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
-  use _ <- result.try(apply_migration(conn, migration_zero))
-  use last <- result.try(get_last_applied_migration(conn))
+  use _ <- result.try(apply_next_migration(conn))
+  update_schema_file(url)
+}
+
+pub fn migrate_down() -> Result(Nil, types.MigrateError) {
+  use url <- result.try(database.get_url())
+  use conn <- result.try(database.connect(url))
+  use _ <- result.try(roll_back_previous_migration(conn))
+  update_schema_file(url)
+}
+
+pub fn migrate_to(migration_number: Int) -> Result(Nil, types.MigrateError) {
+  use url <- result.try(database.get_url())
+  use conn <- result.try(database.connect(url))
+  use _ <- result.try(execute_migrations_to(conn, migration_number))
+  update_schema_file(url)
+}
+
+pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
+  use url <- result.try(database.get_url())
+  use conn <- result.try(database.connect(url))
+  use _ <- result.try(execute_migrations_to_last(conn))
+  update_schema_file(url)
+}
+
+pub fn apply_next_migration(
+  connection: pog.Connection,
+) -> Result(Nil, types.MigrateError) {
+  use _ <- result.try(apply_migration(connection, migration_zero))
+  use last <- result.try(get_last_applied_migration(connection))
   use migrations <- result.try(fs.get_migrations())
   use migration <- result.try(fs.find_migration(migrations, last.0 + 1))
-  use _ <- result.try(apply_migration(conn, migration))
-  use schema <- result.try(database.get_schema(url))
-  fs.write_schema_file(schema)
+  apply_migration(connection, migration)
 }
 
-pub fn migrate_down() {
-  use url <- result.try(database.get_url())
-  use conn <- result.try(database.connect(url))
-  use _ <- result.try(apply_migration(conn, migration_zero))
-  use last <- result.try(get_last_applied_migration(conn))
+pub fn roll_back_previous_migration(
+  connection: pog.Connection,
+) -> Result(Nil, types.MigrateError) {
+  use _ <- result.try(apply_migration(connection, migration_zero))
+  use last <- result.try(get_last_applied_migration(connection))
   use migrations <- result.try(fs.get_migrations())
   use migration <- result.try(fs.find_migration(migrations, last.0))
-  use _ <- result.try(roll_back_migration(conn, migration))
-  use schema <- result.try(database.get_schema(url))
-  fs.write_schema_file(schema)
+  roll_back_migration(connection, migration)
 }
 
-pub fn migrate_to(migration_number: Int) {
-  use url <- result.try(database.get_url())
-  use conn <- result.try(database.connect(url))
-  use _ <- result.try(apply_migration(conn, migration_zero))
-  use last <- result.try(get_last_applied_migration(conn))
+pub fn execute_migrations_to(
+  connection: pog.Connection,
+  migration_number: Int,
+) -> Result(Nil, types.MigrateError) {
+  use _ <- result.try(apply_migration(connection, migration_zero))
+  use last <- result.try(get_last_applied_migration(connection))
   use migrations <- result.try(fs.get_migrations())
-  use _ <- result.try(
-    list.range(last.0, migration_number)
-    |> list.try_map(fs.find_migration(migrations, _))
-    |> result.then(list.try_each(_, fn(migration) {
-      case migration_number > last.0 {
-        True -> apply_migration(conn, migration)
-        False -> roll_back_migration(conn, migration)
-      }
-    })),
-  )
-  use schema <- result.try(database.get_schema(url))
-  fs.write_schema_file(schema)
+
+  fs.find_migrations_between(migrations, last.0, migration_number)
+  |> result.then(list.try_each(_, fn(migration) {
+    case migration_number > last.0 {
+      True -> apply_migration(connection, migration)
+      False -> roll_back_migration(connection, migration)
+    }
+  }))
 }
 
-pub fn apply_migration(connection: pog.Connection, migration: types.Migration) {
+pub fn execute_migrations_to_last(
+  connection: pog.Connection,
+) -> Result(Nil, types.MigrateError) {
+  use _ <- result.try(apply_migration(connection, migration_zero))
+  use last <- result.try(get_last_applied_migration(connection))
+  use migrations <- result.try(fs.get_migrations())
+  let max = list.fold(migrations, 0, fn(max, mig) { int.max(max, mig.number) })
+  use <- bool.guard(max > last.0, Error(types.NoMigrationToApplyError))
+
+  fs.find_migrations_between(migrations, last.0, max)
+  |> result.then(list.try_each(_, fn(migration) {
+    apply_migration(connection, migration)
+  }))
+}
+
+pub fn apply_migration(
+  connection: pog.Connection,
+  migration: types.Migration,
+) -> Result(Nil, types.MigrateError) {
   io.println(
     "\nApplying migration "
     <> int.to_string(migration.number)
@@ -134,7 +173,7 @@ pub fn apply_migration(connection: pog.Connection, migration: types.Migration) {
 pub fn roll_back_migration(
   connection: pog.Connection,
   migration: types.Migration,
-) {
+) -> Result(Nil, types.MigrateError) {
   io.println(
     "\nRolling back migration "
     <> int.to_string(migration.number)
@@ -152,8 +191,17 @@ pub fn roll_back_migration(
   database.execute_batch(connection, migration.number, queries)
 }
 
-pub fn get_migrations() {
-  todo
+pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
+  fs.get_migrations()
+}
+
+pub fn get_schema(url: String) -> Result(String, types.MigrateError) {
+  database.get_schema(url)
+}
+
+pub fn update_schema_file(url: String) -> Result(Nil, types.MigrateError) {
+  use schema <- result.try(get_schema(url))
+  fs.write_schema_file(schema)
 }
 
 fn get_last_applied_migration(
@@ -169,4 +217,25 @@ fn get_last_applied_migration(
       pog.Returned(_, [last, ..]) -> Ok(last)
     }
   })
+}
+
+fn show() {
+  use url <- result.try(database.get_url())
+  use conn <- result.try(database.connect(url))
+  use _ <- result.try(apply_migration(conn, migration_zero))
+  use last <- result.try(get_last_applied_migration(conn))
+
+  io.println(
+    "Last applied migration: " <> int.to_string(last.0) <> "-" <> last.1,
+  )
+
+  use schema <- result.try(get_schema(url))
+
+  io.println("")
+  io.println(schema)
+  Ok(Nil)
+}
+
+pub fn print_error(error: types.MigrateError) -> Nil {
+  types.print_migrate_error(error)
 }

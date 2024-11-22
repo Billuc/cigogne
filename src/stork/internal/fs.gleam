@@ -8,6 +8,8 @@ import simplifile
 import stork/internal/utils
 import stork/types
 
+const migration_file_pattern = "./**/migrations/*.sql"
+
 const schema_file_path = "./sql.schema"
 
 const migration_up_guard = "--- migration:up"
@@ -17,7 +19,7 @@ const migration_down_guard = "--- migration:down"
 const migration_end_guard = "--- migration:end"
 
 pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
-  globlin.new_pattern("**/migrations/*.sql")
+  globlin.new_pattern(migration_file_pattern)
   |> result.replace_error(types.PatternError(
     "Something is wrong with the search pattern !",
   ))
@@ -111,6 +113,25 @@ pub fn find_migration(
 ) -> Result(types.Migration, types.MigrateError) {
   list.find(migrations, fn(m) { m.number == migration_number })
   |> result.replace_error(types.MigrationNotFoundError(migration_number))
+}
+
+pub fn find_migrations_between(
+  migrations: List(types.Migration),
+  migration_from: Int,
+  migration_to: Int,
+) -> Result(List(types.Migration), types.MigrateError) {
+  let migration_range = case migration_to, migration_from {
+    a, b if a == b -> []
+    a, b if a > b -> list.range(b + 1, a)
+    a, b -> list.range(b, a)
+  }
+  migration_range
+  |> list.try_map(find_migration(migrations, _))
+}
+
+pub fn read_schema_file() -> Result(String, types.MigrateError) {
+  simplifile.read(schema_file_path)
+  |> result.replace_error(types.FileError(schema_file_path))
 }
 
 pub fn write_schema_file(content: String) -> Result(Nil, types.MigrateError) {

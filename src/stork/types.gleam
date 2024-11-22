@@ -18,6 +18,7 @@ pub type MigrateError {
   MigrationNotFoundError(number: Int)
   NoResultError
   SchemaQueryError(error: String)
+  NoMigrationToApplyError
 }
 
 pub type Migration {
@@ -50,6 +51,8 @@ pub fn print_migrate_error(error: MigrateError) -> Nil {
         <> path
         <> "]",
       )
+    MigrationNotFoundError(0) ->
+      io.println_error("Migration n°0 cannot be fetched or rolled back")
     MigrationNotFoundError(number) ->
       io.println_error(
         "Migration n°" <> int.to_string(number) <> " does not exist !",
@@ -65,6 +68,7 @@ pub fn print_migrate_error(error: MigrateError) -> Nil {
     UrlError(url) -> io.println_error("Database URL badly formatted: " <> url)
     SchemaQueryError(err) ->
       io.println_error("Error while querying schema : " <> err)
+    NoMigrationToApplyError -> io.println_error("No migration to apply !")
   }
 }
 
