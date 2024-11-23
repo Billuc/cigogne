@@ -26,7 +26,7 @@ pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
   |> result.then(fn(pattern) {
     globlin_fs.glob(pattern, globlin_fs.RegularFiles)
     |> result.replace_error(types.FileError(
-      "There was a problem accessing some files !",
+      "There was a problem accessing some files/folders !",
     ))
   })
   |> result.then(fn(files) {

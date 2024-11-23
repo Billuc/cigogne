@@ -51,23 +51,24 @@ fn show_usage() -> Result(Nil, types.MigrateError) {
   io.println("=            GLITR MIGRATE            =")
   io.println("=======================================")
   io.println("")
-  io.println("Usage: gleam run -m glitr/migrate [command|num]")
+  io.println("Usage: gleam run -m glitr/migrate [command]")
   io.println("")
   io.println("List of commands:")
   io.println(" - show:  Show the last currently applied migration")
   io.println(" - up:    Migrate up one version / Apply one migration")
   io.println(" - down:  Migrate down one version / Rollback one migration")
-  io.println("")
+  io.println(" - last:  Apply all migrations until the last one defined")
   io.println(
-    "Alternatively, a migration number can be passed and all migration between the currently",
-  )
-  io.println(
-    "applied migration and the migration with the provided number will be applied/rolled back",
+    " - to N:  Apply or roll back migrations until the migration N is reached",
   )
 
   Ok(Nil)
 }
 
+/// Apply the next migration that wasn't applied yet.  
+/// This function will get the database url from the `DATABASE_URL` environment variable.  
+/// The migrations are then acquired from **/migrations/*.sql files.  
+/// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_up() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
@@ -75,6 +76,10 @@ pub fn migrate_up() -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
+/// Roll back the last applied migration.  
+/// This function will get the database url from the `DATABASE_URL` environment variable.  
+/// The migrations are then acquired from **/migrations/*.sql files.  
+/// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_down() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
@@ -82,6 +87,10 @@ pub fn migrate_down() -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
+/// Apply or roll back migrations until we reach the migration corresponding to the provided number.  
+/// This function will get the database url from the `DATABASE_URL` environment variable.  
+/// The migrations are then acquired from **/migrations/*.sql files.  
+/// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_to(migration_number: Int) -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
@@ -89,6 +98,10 @@ pub fn migrate_to(migration_number: Int) -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
+/// Apply migrations until we reach the last defined migration.  
+/// This function will get the database url from the `DATABASE_URL` environment variable.  
+/// The migrations are then acquired from **/migrations/*.sql files.  
+/// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
@@ -96,6 +109,9 @@ pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
+/// Apply the next migration that wasn't applied yet.  
+/// The migrations are acquired from **/migrations/*.sql files.  
+/// This function does not create a schema file.
 pub fn apply_next_migration(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
@@ -106,6 +122,9 @@ pub fn apply_next_migration(
   apply_migration(connection, migration)
 }
 
+/// Roll back the last applied migration.  
+/// The migrations are acquired from **/migrations/*.sql files.  
+/// This function does not create a schema file.
 pub fn roll_back_previous_migration(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
@@ -116,6 +135,9 @@ pub fn roll_back_previous_migration(
   roll_back_migration(connection, migration)
 }
 
+/// Apply or roll back migrations until we reach the migration corresponding to the provided number.  
+/// The migrations are acquired from **/migrations/*.sql files.  
+/// This function does not create a schema file.
 pub fn execute_migrations_to(
   connection: pog.Connection,
   migration_number: Int,
@@ -133,6 +155,9 @@ pub fn execute_migrations_to(
   }))
 }
 
+/// Apply migrations until we reach the last defined migration.  
+/// The migrations are acquired from **/migrations/*.sql files.  
+/// This function does not create a schema file.
 pub fn execute_migrations_to_last(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
@@ -148,6 +173,8 @@ pub fn execute_migrations_to_last(
   }))
 }
 
+/// Apply a migration to the database.  
+/// This function does not create a schema file.
 pub fn apply_migration(
   connection: pog.Connection,
   migration: types.Migration,
@@ -170,6 +197,8 @@ pub fn apply_migration(
   database.execute_batch(connection, migration.number, queries)
 }
 
+/// Roll back a migration from the database.  
+/// This function does not create a schema file.
 pub fn roll_back_migration(
   connection: pog.Connection,
   migration: types.Migration,
@@ -191,14 +220,19 @@ pub fn roll_back_migration(
   database.execute_batch(connection, migration.number, queries)
 }
 
+/// Get all defined migrations in your project.  
+/// Migration files are searched in `/migrations` folders.
 pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
   fs.get_migrations()
 }
 
+/// Get details about the schema of the database at the provided url.
 pub fn get_schema(url: String) -> Result(String, types.MigrateError) {
   database.get_schema(url)
 }
 
+/// Create or update a schema file with details of the schema of the database at the provided url.
+/// The schema file is created at `./sql.schema`.
 pub fn update_schema_file(url: String) -> Result(Nil, types.MigrateError) {
   use schema <- result.try(get_schema(url))
   fs.write_schema_file(schema)
@@ -236,6 +270,7 @@ fn show() {
   Ok(Nil)
 }
 
+/// Print a MigrateError to the standard error stream.
 pub fn print_error(error: types.MigrateError) -> Nil {
   types.print_migrate_error(error)
 }

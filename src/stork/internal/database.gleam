@@ -4,6 +4,7 @@ import gleam/list
 import gleam/result
 import pog
 import shellout
+import stork/internal/utils
 import stork/types
 
 pub fn get_url() -> Result(String, types.MigrateError) {
@@ -47,7 +48,7 @@ fn handle_queries(
 
   case migration_number, result {
     0, Error(pog.ConstraintViolated(_, "_migrations_pkey", _)) -> Ok(Nil)
-    _, _ -> result |> result.map_error(types.describe_query_error)
+    _, _ -> result |> result.map_error(utils.describe_query_error)
   }
 }
 

@@ -93,6 +93,13 @@ pub fn init() -> Nil {
 
 Further documentation can be found at <https://hexdocs.pm/stork>.
 
+## Development ideas
+
+I have a few ideas to improve this library that I may implement in the future.  
+Let me know if some of those are of interest to you and I will prioritze them.
+
+- Specify default schema (for schema file) via an envvar.
+
 ## Development
 
 ```sh
