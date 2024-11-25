@@ -1,4 +1,4 @@
-name: test
+name: publish
 
 on:
   push:
@@ -13,8 +13,13 @@ jobs:
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "26.0.2"
-          gleam-version: "1.5.1"
+          gleam-version: "1.6.1"
           rebar3-version: "3"
           # elixir-version: "1.15.4"
       - run: gleam deps download
-      - run: gleam publish -y
+      - name: Publishing to Hex
+        run: gleam publish -y
+        env:
+          HEXPM_USER: ${{ secrets.HEXPM_USER }}
+          HEXPM_PASS: ${{ secrets.HEXPM_PASS }}
+
