@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/int
 import gleam/list
 import gleam/result
@@ -8,7 +9,7 @@ import simplifile
 import stork/internal/utils
 import stork/types
 
-const migration_file_pattern = "./**/migrations/*.sql"
+const migration_file_pattern = "**/migrations/*.sql"
 
 const schema_file_path = "./sql.schema"
 
@@ -60,6 +61,11 @@ fn read_migration_file(
 pub fn parse_file_name(
   path: String,
 ) -> Result(#(Int, String), types.MigrateError) {
+  use <- bool.guard(
+    !string.ends_with(path, ".sql"),
+    Error(types.FileNameError(path)),
+  )
+
   let num_and_name =
     string.split(path, "/")
     |> list.last
