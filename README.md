@@ -1,11 +1,11 @@
-# 🪽 stork - Easy migrations in Gleam
+# 🪽 cigogne - Easy migrations in Gleam
 
-[![Package Version](https://img.shields.io/hexpm/v/stork)](https://hex.pm/packages/stork)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/stork/)
+[![Package Version](https://img.shields.io/hexpm/v/cigogne)](https://hex.pm/packages/cigogne)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/cigogne/)
 
-Stork is a simple tool to manage migrations for your Postgres database.
+Cigogne (French for stork) is a simple tool to manage migrations for your Postgres database.
 The idea is that instead of writing schemas in Gleam and having a tool do the migration scripts for you,
-with Stork you have total control on your migrations. That approach gives you more freedom on how you want to do
+with Cigogne you have total control on your migrations. That approach gives you more freedom on how you want to do
 your migrations for the price of a bit of time and learning some database skills.
 
 For example, if you decide to rename a column, you can use a `ALTER TABLE RENAME COLUMN` query.  
@@ -16,15 +16,15 @@ As a plus, this integrates really well with the approach provided by [squirrel](
 ## Installation
 
 ```sh
-gleam add --dev stork
+gleam add --dev cigogne
 ```
 
-Stork can also be installed as a regular dependency and used in your project. See documentation about the `stork` module to know more.
+Cigogne can also be installed as a regular dependency and used in your project. See documentation about the `cigogne` module to know more.
 
 ## Usage
 
-To use `stork`, you first have to create your migration scripts in a `migrations` folder.
-Stork will look for `.sql` files in these folders to get your migrations. Stork expects 
+To use `cigogne`, you first have to create your migration scripts in a `migrations` folder.
+Cigogne will look for `.sql` files in these folders to get your migrations. Cigogne expects 
 the sql files to have the following format `<MigrationNumber>-<MigrationName>.sql`. This way we 
 can get an order in which migrations should be applied and a descriptive name right away. It also
 allows for easy sorting of your migration scripts and forces you to give it a meaningful name.
@@ -56,42 +56,42 @@ You are now ready to execute your migration ! The first way of executing your mi
 
 ```sh
 # Apply the next migration
-gleam run -m stork up
+gleam run -m cigogne up
 # Roll back the last applied migration
-gleam run -m stork down
+gleam run -m cigogne down
 # Apply all migrations not yet applied
-gleam run -m stork last
+gleam run -m cigogne last
 # Apply/roll back migrations until migration N is reached
-gleam run -m stork to N
+gleam run -m cigogne to N
 # Show the last applied migration and the current DB schema
-gleam run -m stork show
+gleam run -m cigogne show
 ```
 
 You can also use it in your server initalisation function to make sure your schema is up-to-date with your code.
 
 ```gleam
-import stork
+import cigogne
 
 pub fn init() -> Nil {
     let db_url <- get_db_url_from_env() // For example
     let db_connection <- db_connect(db_url)
-    stork.execute_migrations_to_last(db_connection)
+    cigogne.execute_migrations_to_last(db_connection)
     |> result.then(stock.update_schema_file(db_url))
-    |> result.map_error(stork.print_error)
+    |> result.map_error(cigogne.print_error)
     |> result.unwrap_both
 
     // Or directly
-    stork.migrate_to_last()
-    |> result.map_error(stork.print_error)
+    cigogne.migrate_to_last()
+    |> result.map_error(cigogne.print_error)
     |> result.unwrap_both
 }
 ```
 
-> By default, `stork` gets the database url from the `DATABASE_URL` environment variable.  
+> By default, `cigogne` gets the database url from the `DATABASE_URL` environment variable.  
 > Also, the migrate_up, _down, _to, and _to_last functions systematically update a schema file
 > whenever they are successful.
 
-Further documentation can be found at <https://hexdocs.pm/stork>.
+Further documentation can be found at <https://hexdocs.pm/cigogne>.
 
 ## Development ideas
 

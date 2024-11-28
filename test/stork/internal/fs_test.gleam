@@ -2,8 +2,8 @@ import gleam/list
 import gleam/result
 import gleeunit/should
 import simplifile
-import stork/internal/fs
-import stork/types
+import cigogne/internal/fs
+import cigogne/types
 
 pub fn parse_mig_path_test() {
   "src/migrations/1-MigrationTest.sql"

@@ -1,8 +1,8 @@
 # CHANGELOG
 
-## 1.0.0 - 25/11/2024
+## 1.0.0 - 28/11/2024
 
-Initial release of stork
+Initial release of cigogne
 
 **Features**
 

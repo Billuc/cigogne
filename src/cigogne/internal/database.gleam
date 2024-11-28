@@ -4,8 +4,8 @@ import gleam/list
 import gleam/result
 import pog
 import shellout
-import stork/internal/utils
-import stork/types
+import cigogne/internal/utils
+import cigogne/types
 
 pub fn get_url() -> Result(String, types.MigrateError) {
   envoy.get("DATABASE_URL")

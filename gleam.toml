@@ -1,4 +1,4 @@
-name = "stork"
+name = "cigogne"
 version = "1.0.0"
 
 # Fill out these fields if you intend to generate HTML documentation or publish
@@ -6,14 +6,14 @@ version = "1.0.0"
 #
 description = "Easily migrate your Postgres databases. In Gleam !"
 licences = ["MIT"]
-repository = { type = "github", user = "Billuc", repo = "stork" }
-links = [{ title = "Website", href = "https://hexdocs.pm/stork/" }]
+repository = { type = "github", user = "Billuc", repo = "cigogne" }
+links = [{ title = "Website", href = "https://hexdocs.pm/cigogne/" }]
 #
 # For a full reference of all the available options, you can have a look at
 # https://gleam.run/writing-gleam/gleam-toml/.
 
 internal_modules = [
-  "stork/internal/*",
+  "cigogne/internal/*",
 ]
 
 [dependencies]

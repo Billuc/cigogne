@@ -6,9 +6,9 @@ import gleam/io
 import gleam/list
 import gleam/result
 import pog
-import stork/internal/database
-import stork/internal/fs
-import stork/types
+import cigogne/internal/database
+import cigogne/internal/fs
+import cigogne/types
 
 const migration_zero = types.Migration(
   "",

@@ -6,8 +6,8 @@ import gleam/string
 import globlin
 import globlin_fs
 import simplifile
-import stork/internal/utils
-import stork/types
+import cigogne/internal/utils
+import cigogne/types
 
 const migration_file_pattern = "**/migrations/*.sql"
 
