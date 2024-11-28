@@ -1,8 +1,8 @@
+import cigogne/internal/utils
 import gleam/int
 import gleam/io
 import gleam/list
 import pog
-import cigogne/internal/utils
 
 /// The errors returned by cigogne
 pub type MigrateError {

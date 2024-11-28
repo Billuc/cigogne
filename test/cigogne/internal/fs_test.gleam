@@ -1,9 +1,9 @@
+import cigogne/internal/fs
+import cigogne/types
 import gleam/list
 import gleam/result
 import gleeunit/should
 import simplifile
-import cigogne/internal/fs
-import cigogne/types
 
 pub fn parse_mig_path_test() {
   "src/migrations/1-MigrationTest.sql"

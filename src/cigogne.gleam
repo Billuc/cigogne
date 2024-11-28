@@ -1,4 +1,7 @@
 import argv
+import cigogne/internal/database
+import cigogne/internal/fs
+import cigogne/types
 import gleam/bool
 import gleam/dynamic
 import gleam/int
@@ -6,9 +9,6 @@ import gleam/io
 import gleam/list
 import gleam/result
 import pog
-import cigogne/internal/database
-import cigogne/internal/fs
-import cigogne/types
 
 const migration_zero = types.Migration(
   "",

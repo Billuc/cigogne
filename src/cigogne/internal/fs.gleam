@@ -1,3 +1,5 @@
+import cigogne/internal/utils
+import cigogne/types
 import gleam/bool
 import gleam/int
 import gleam/list
@@ -6,8 +8,6 @@ import gleam/string
 import globlin
 import globlin_fs
 import simplifile
-import cigogne/internal/utils
-import cigogne/types
 
 const migration_file_pattern = "**/migrations/*.sql"
 

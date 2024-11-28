@@ -1,11 +1,11 @@
+import cigogne/internal/utils
+import cigogne/types
 import envoy
 import gleam/io
 import gleam/list
 import gleam/result
 import pog
 import shellout
-import cigogne/internal/utils
-import cigogne/types
 
 pub fn get_url() -> Result(String, types.MigrateError) {
   envoy.get("DATABASE_URL")

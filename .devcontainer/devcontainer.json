@@ -1,0 +1,13 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/universal:2",
+	"features": {
+		"ghcr.io/devcontainers-extra/features/gleam:1": {}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"gleam.gleam"
+			]
+		}
+	}
+}

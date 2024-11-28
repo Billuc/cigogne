@@ -1,7 +1,7 @@
-import envoy
-import gleeunit/should
 import cigogne/internal/database
 import cigogne/types
+import envoy
+import gleeunit/should
 
 pub fn get_url_from_envvar_test() {
   envoy.set(
