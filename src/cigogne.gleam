@@ -77,7 +77,7 @@ fn show_usage() -> Result(Nil, types.MigrateError) {
 
 /// Apply the next migration that wasn't applied yet.  
 /// This function will get the database url from the `DATABASE_URL` environment variable.  
-/// The migrations are then acquired from **/migrations/*.sql files.  
+/// The migrations are then acquired from priv/migrations/*.sql files.  
 /// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_up() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
@@ -88,7 +88,7 @@ pub fn migrate_up() -> Result(Nil, types.MigrateError) {
 
 /// Roll back the last applied migration.  
 /// This function will get the database url from the `DATABASE_URL` environment variable.  
-/// The migrations are then acquired from **/migrations/*.sql files.  
+/// The migrations are then acquired from priv/migrations/*.sql files.  
 /// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_down() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
@@ -99,7 +99,7 @@ pub fn migrate_down() -> Result(Nil, types.MigrateError) {
 
 /// Apply or roll back migrations until we reach the migration corresponding to the provided number.  
 /// This function will get the database url from the `DATABASE_URL` environment variable.  
-/// The migrations are then acquired from **/migrations/*.sql files.  
+/// The migrations are then acquired from priv/migrations/*.sql files.  
 /// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_n(count: Int) -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
@@ -110,7 +110,7 @@ pub fn migrate_n(count: Int) -> Result(Nil, types.MigrateError) {
 
 /// Apply migrations until we reach the last defined migration.  
 /// This function will get the database url from the `DATABASE_URL` environment variable.  
-/// The migrations are then acquired from **/migrations/*.sql files.  
+/// The migrations are then acquired from priv/migrations/*.sql files.  
 /// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
@@ -121,11 +121,11 @@ pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
 
 /// 
 pub fn new_migration(name: String) -> Result(Nil, types.MigrateError) {
-  todo
+  fs.create_new_migration_file(naive_datetime.now_utc(), name)
 }
 
 /// Apply the next migration that wasn't applied yet.  
-/// The migrations are acquired from **/migrations/*.sql files.  
+/// The migrations are acquired from priv/migrations/*.sql files.  
 /// This function does not create a schema file.
 pub fn apply_next_migration(
   connection: pog.Connection,

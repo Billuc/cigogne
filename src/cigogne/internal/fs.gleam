@@ -10,7 +10,9 @@ import simplifile
 import tempo
 import tempo/naive_datetime
 
-const migration_file_pattern = "priv/migrations/*.sql"
+const migrations_folder = "priv/migrations"
+
+const migration_file_pattern = migrations_folder <> "/*.sql"
 
 const schema_file_path = "./sql.schema"
 
@@ -128,4 +130,30 @@ pub fn read_schema_file() -> Result(String, types.MigrateError) {
 pub fn write_schema_file(content: String) -> Result(Nil, types.MigrateError) {
   simplifile.write(schema_file_path, content)
   |> result.replace_error(types.FileError(schema_file_path))
+}
+
+pub fn create_new_migration_file(
+  timestamp: tempo.NaiveDateTime,
+  name: String,
+) -> Result(Nil, types.MigrateError) {
+  let file_path =
+    migrations_folder
+    <> timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
+    <> "-"
+    <> name
+    <> ".sql"
+
+  simplifile.create_file(file_path)
+  |> result.replace_error(types.FileError(file_path))
+  |> result.then(fn(_) {
+    file_path
+    |> simplifile.write(
+      migration_up_guard
+      <> "\n\n"
+      <> migration_down_guard
+      <> "\n\n"
+      <> migration_end_guard,
+    )
+    |> result.replace_error(types.FileError(file_path))
+  })
 }
