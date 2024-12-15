@@ -1,15 +1,16 @@
 import cigogne/internal/utils
 import cigogne/types
 import gleam/bool
-import gleam/int
 import gleam/list
 import gleam/result
 import gleam/string
 import globlin
 import globlin_fs
 import simplifile
+import tempo
+import tempo/naive_datetime
 
-const migration_file_pattern = "**/migrations/*.sql"
+const migration_file_pattern = "priv/migrations/*.sql"
 
 const schema_file_path = "./sql.schema"
 
@@ -60,20 +61,26 @@ fn read_migration_file(
 
 pub fn parse_file_name(
   path: String,
-) -> Result(#(Int, String), types.MigrateError) {
+) -> Result(#(tempo.NaiveDateTime, String), types.MigrateError) {
   use <- bool.guard(
     !string.ends_with(path, ".sql"),
     Error(types.FileNameError(path)),
   )
 
-  let num_and_name =
+  let ts_and_name =
     string.split(path, "/")
     |> list.last
     |> result.map(string.drop_end(_, 4))
     |> result.then(string.split_once(_, "-"))
-  let num = num_and_name |> result.map(fn(v) { v.0 }) |> result.then(int.parse)
 
-  case num, num_and_name {
+  let ts =
+    ts_and_name
+    |> result.map(fn(v) { v.0 })
+    |> result.then(fn(v) {
+      naive_datetime.parse(v, "YYYYMMDDhhmmss") |> result.replace_error(Nil)
+    })
+
+  case ts, ts_and_name {
     Ok(n), Ok(#(_, name)) -> Ok(#(n, name))
     _, _ -> Error(types.FileNameError(path))
   }
@@ -111,28 +118,6 @@ fn split_queries(queries: String) -> List(String) {
   |> list.map(string.trim)
   |> list.filter(fn(q) { !string.is_empty(q) })
   |> list.map(fn(q) { q <> ";" })
-}
-
-pub fn find_migration(
-  migrations: List(types.Migration),
-  migration_number: Int,
-) -> Result(types.Migration, types.MigrateError) {
-  list.find(migrations, fn(m) { m.number == migration_number })
-  |> result.replace_error(types.MigrationNotFoundError(migration_number))
-}
-
-pub fn find_migrations_between(
-  migrations: List(types.Migration),
-  migration_from: Int,
-  migration_to: Int,
-) -> Result(List(types.Migration), types.MigrateError) {
-  let migration_range = case migration_to, migration_from {
-    a, b if a == b -> []
-    a, b if a > b -> list.range(b + 1, a)
-    a, b -> list.range(b, a)
-  }
-  migration_range
-  |> list.try_map(find_migration(migrations, _))
 }
 
 pub fn read_schema_file() -> Result(String, types.MigrateError) {
