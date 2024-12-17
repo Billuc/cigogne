@@ -37,6 +37,7 @@ pub fn describe_query_error(error: pog.QueryError) -> String {
     pog.UnexpectedResultType(errs) ->
       "Unexpected result type ! \n"
       <> list.map(errs, describe_decode_error) |> string.join("\n")
+    pog.QueryTimeout -> "Query Timeout"
   }
 }
 

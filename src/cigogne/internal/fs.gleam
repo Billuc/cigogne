@@ -28,7 +28,7 @@ pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
     "Something is wrong with the search pattern !",
   ))
   |> result.then(fn(pattern) {
-    globlin_fs.glob(pattern, globlin_fs.RegularFiles)
+    globlin_fs.glob_from(pattern, migrations_folder, globlin_fs.RegularFiles)
     |> result.replace_error(types.FileError(
       "There was a problem accessing some files/folders !",
     ))
@@ -77,9 +77,9 @@ pub fn parse_file_name(
 
   let ts =
     ts_and_name
-    |> result.map(fn(v) { v.0 })
     |> result.then(fn(v) {
-      naive_datetime.parse(v, "YYYYMMDDhhmmss") |> result.replace_error(Nil)
+      naive_datetime.parse(v.0, "YYYYMMDDHHmmss")
+      |> result.replace_error(Nil)
     })
 
   case ts, ts_and_name {
@@ -138,7 +138,8 @@ pub fn create_new_migration_file(
 ) -> Result(Nil, types.MigrateError) {
   let file_path =
     migrations_folder
-    <> timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
+    <> "/"
+    <> timestamp |> naive_datetime.format("YYYYMMDDHHmmss")
     <> "-"
     <> name
     <> ".sql"

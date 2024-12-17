@@ -14,7 +14,10 @@ pub fn find_migration(
   |> list.find(fn(m) {
     naive_datetime.is_equal(m.timestamp, data.timestamp) && m.name == data.name
   })
-  |> result.replace_error(types.NoMigrationToRollbackError)
+  |> result.replace_error(types.MigrationNotFoundError(
+    data.timestamp,
+    data.name,
+  ))
 }
 
 pub fn compare_migrations(
