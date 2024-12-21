@@ -173,3 +173,415 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
     ),
   ])
 }
+
+pub fn find_first_non_applied_migration_all_applied_test() {
+  let migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+  ]
+  let applied_migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+  ]
+
+  migrations.find_first_non_applied_migration(migrations, applied_migrations)
+  |> should.be_error
+  |> should.equal(types.NoMigrationToApplyError)
+}
+
+pub fn test_find_first_non_applied_migration_is_last() {
+  let migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  ]
+  let applied_migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+  ]
+
+  migrations.find_first_non_applied_migration(migrations, applied_migrations)
+  |> should.be_ok
+  |> should.equal(
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  )
+}
+
+pub fn find_first_non_applied_migration_is_not_last_test() {
+  let migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  ]
+  let applied_migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  ]
+
+  migrations.find_first_non_applied_migration(migrations, applied_migrations)
+  |> should.be_ok
+  |> should.equal(
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+  )
+}
+
+pub fn find_first_non_applied_migration_skips_removed_migration_test() {
+  let migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:24"),
+      "Test4",
+      [],
+      [],
+    ),
+  ]
+  let applied_migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  ]
+
+  migrations.find_first_non_applied_migration(migrations, applied_migrations)
+  |> should.be_ok
+  |> should.equal(
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:24"),
+      "Test4",
+      [],
+      [],
+    ),
+  )
+}
+
+pub fn find_all_non_applied_migration_test() {
+  let migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:24"),
+      "Test4",
+      [],
+      [],
+    ),
+  ]
+  let applied_migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  ]
+
+  migrations.find_all_non_applied_migration(migrations, applied_migrations)
+  |> should.be_ok
+  |> should.equal([
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:24"),
+      "Test4",
+      [],
+      [],
+    ),
+  ])
+}
+
+pub fn find_n_to_apply_positive_test() {
+  let migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:24"),
+      "Test4",
+      [],
+      [],
+    ),
+  ]
+  let applied_migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+  ]
+
+  migrations.find_n_migrations_to_apply(migrations, applied_migrations, 2)
+  |> should.be_ok
+  |> should.equal([
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  ])
+}
+
+pub fn find_n_migrations_to_apply_negative_test() {
+  let migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:24"),
+      "Test4",
+      [],
+      [],
+    ),
+  ]
+  let applied_migrations = [
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:21"),
+      "Test1",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  ]
+
+  migrations.find_n_migrations_to_apply(migrations, applied_migrations, -2)
+  |> should.be_ok
+  |> should.equal([
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
+      [],
+      [],
+    ),
+    types.Migration(
+      "",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
+      [],
+      [],
+    ),
+  ])
+}

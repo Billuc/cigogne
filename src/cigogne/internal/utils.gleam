@@ -90,7 +90,12 @@ pub fn pog_timestamp_to_string(value: pog.Timestamp) -> String {
   |> string.join("-")
   <> " "
   <> [value.time.hours, value.time.minutes, value.time.seconds]
-  |> list.map(int.to_string)
+  |> list.map(fn(v: Int) {
+    case v {
+      v if v < 10 -> "0" <> int.to_string(v)
+      _ -> int.to_string(v)
+    }
+  })
   |> string.join(":")
 }
 
