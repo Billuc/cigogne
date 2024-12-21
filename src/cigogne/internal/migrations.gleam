@@ -51,7 +51,8 @@ fn loop_lists_and_find_non_applied(
     [mig_a, ..rest_a], [mig_b, ..rest_b] -> {
       case compare_migrations(mig_a, mig_b) {
         order.Eq -> loop_lists_and_find_non_applied(rest_a, rest_b)
-        _ -> option.Some(mig_a)
+        order.Gt -> loop_lists_and_find_non_applied(to_apply, rest_b)
+        order.Lt -> option.Some(mig_a)
       }
     }
   }
@@ -68,7 +69,7 @@ pub fn find_all_non_applied_migration(
     loop_lists_and_find_all_non_applied(sorted_migrations, sorted_applied, [])
   {
     [] -> Error(types.NoMigrationToApplyError)
-    list_migs -> Ok(list_migs)
+    list_migs -> Ok(list.reverse(list_migs))
   }
 }
 
@@ -78,9 +79,10 @@ fn loop_lists_and_find_all_non_applied(
   found: List(types.Migration),
 ) -> List(types.Migration) {
   case to_apply, applied {
-    [], _ -> []
-    [mig, ..rest], [] ->
+    [], _ -> found
+    [mig, ..rest], [] -> {
       loop_lists_and_find_all_non_applied(rest, applied, [mig, ..found])
+    }
     [mig_a, ..rest_a], [mig_b, ..rest_b] -> {
       case compare_migrations(mig_a, mig_b) {
         order.Eq -> loop_lists_and_find_all_non_applied(rest_a, rest_b, found)
@@ -107,10 +109,11 @@ pub fn find_n_migrations_to_apply(
       let sorted_migrations =
         list.sort(migrations, order.reverse(compare_migrations))
       let sorted_applied = list.sort(applied, order.reverse(compare_migrations))
-      find_n_to_rollback(sorted_migrations, sorted_applied, [], n)
+      find_n_to_rollback(sorted_migrations, sorted_applied, [], -n)
     }
     _ -> Ok([])
   }
+  |> result.map(list.reverse)
 }
 
 fn find_n_non_applied(

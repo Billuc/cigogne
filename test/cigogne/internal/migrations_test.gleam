@@ -1,9 +1,7 @@
 import cigogne/internal/migrations
 import cigogne/types
 import gleam/list
-import gleam/result
 import gleeunit/should
-import simplifile
 import tempo/naive_datetime
 
 pub fn find_migration_test() {
@@ -571,15 +569,15 @@ pub fn find_n_migrations_to_apply_negative_test() {
   |> should.equal([
     types.Migration(
       "",
-      naive_datetime.literal("2024-12-21 19:21:22"),
-      "Test2",
+      naive_datetime.literal("2024-12-21 19:21:23"),
+      "Test3",
       [],
       [],
     ),
     types.Migration(
       "",
-      naive_datetime.literal("2024-12-21 19:21:23"),
-      "Test3",
+      naive_datetime.literal("2024-12-21 19:21:22"),
+      "Test2",
       [],
       [],
     ),
