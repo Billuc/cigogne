@@ -1,5 +1,5 @@
 name = "cigogne"
-version = "1.0.0"
+version = "2.0.0"
 
 # Fill out these fields if you intend to generate HTML documentation or publish
 # your project to the Hex package manager.
@@ -25,6 +25,7 @@ shellout = ">= 1.6.0 and < 2.0.0"
 globlin = ">= 2.0.2 and < 3.0.0"
 globlin_fs = ">= 2.0.0 and < 3.0.0"
 simplifile = ">= 2.2.0 and < 3.0.0"
+gtempo = ">= 5.0.2 and < 6.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

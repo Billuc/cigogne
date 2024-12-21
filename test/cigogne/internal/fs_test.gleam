@@ -1,43 +1,58 @@
 import cigogne/internal/fs
+import cigogne/internal/migrations
 import cigogne/types
 import gleam/list
 import gleam/result
 import gleeunit/should
 import simplifile
+import tempo/naive_datetime
 
 pub fn parse_mig_path_test() {
-  "src/migrations/1-MigrationTest.sql"
+  "priv/migrations/20241217205656-MigrationTest.sql"
   |> fs.parse_file_name
   |> should.be_ok
-  |> should.equal(#(1, "MigrationTest"))
+  |> should.equal(#(
+    naive_datetime.literal("2024-12-17 20:56:56"),
+    "MigrationTest",
+  ))
 }
 
 pub fn parse_mig_path_no_slash_test() {
-  "2-SecondMigration.sql"
+  "20241217205757-SecondMigration.sql"
   |> fs.parse_file_name
   |> should.be_ok
-  |> should.equal(#(2, "SecondMigration"))
+  |> should.equal(#(
+    naive_datetime.literal("2024-12-17 20:57:57"),
+    "SecondMigration",
+  ))
 }
 
 pub fn parse_not_sql_should_fail_test() {
-  "3-NotSql.test"
+  "20241217205757-NotSql.test"
   |> fs.parse_file_name
   |> should.be_error
-  |> should.equal(types.FileNameError("3-NotSql.test"))
+  |> should.equal(types.FileNameError("20241217205757-NotSql.test"))
 }
 
 pub fn parse_no_dash_should_fail_test() {
-  "4NoDash.sql"
+  "20241217205757NoDash.sql"
   |> fs.parse_file_name
   |> should.be_error
-  |> should.equal(types.FileNameError("4NoDash.sql"))
+  |> should.equal(types.FileNameError("20241217205757NoDash.sql"))
 }
 
-pub fn parse_not_an_int_should_fail_test() {
-  "Five-NotAnInt.sql"
+pub fn parse_int_id_should_fail_test() {
+  "5-NotATimestamp.sql"
   |> fs.parse_file_name
   |> should.be_error
-  |> should.equal(types.FileNameError("Five-NotAnInt.sql"))
+  |> should.equal(types.FileNameError("5-NotATimestamp.sql"))
+}
+
+pub fn parse_not_a_timestamp_id_should_fail_test() {
+  "Today-NotATimestamp.sql"
+  |> fs.parse_file_name
+  |> should.be_error
+  |> should.equal(types.FileNameError("Today-NotATimestamp.sql"))
 }
 
 pub fn parse_migration_file_test() {
@@ -123,69 +138,14 @@ abc;
   |> should.equal(#(["foo;", "bar;"], ["baz;", "abc;"]))
 }
 
-pub fn find_migration_test() {
-  [
-    types.Migration("", 1, "Test1", [], []),
-    types.Migration("", 2, "Test2", [], []),
-  ]
-  |> fs.find_migration(2)
+pub fn simplifile_read_directory_test() {
+  use <- setup_and_teardown_migrations()
+
+  simplifile.read_directory("priv/migrations")
   |> should.be_ok
-  |> should.equal(types.Migration("", 2, "Test2", [], []))
-}
+  |> should.equal(["20240101123246-Test1.sql", "20240922065413-Test2.sql"])
 
-pub fn migration_not_found_test() {
-  [
-    types.Migration("", 1, "Test1", [], []),
-    types.Migration("", 2, "Test2", [], []),
-  ]
-  |> fs.find_migration(3)
-  |> should.be_error
-  |> should.equal(types.MigrationNotFoundError(3))
-}
-
-pub fn find_migrations_between_does_not_include_lower_if_going_up_test() {
-  [
-    types.Migration("", 1, "Test1", [], []),
-    types.Migration("", 2, "Test2", [], []),
-    types.Migration("", 3, "Test3", [], []),
-    types.Migration("", 4, "Test4", [], []),
-    types.Migration("", 5, "Test5", [], []),
-  ]
-  |> fs.find_migrations_between(2, 4)
-  |> should.be_ok
-  |> should.equal([
-    types.Migration("", 3, "Test3", [], []),
-    types.Migration("", 4, "Test4", [], []),
-  ])
-}
-
-pub fn find_migrations_between_include_all_if_going_down_test() {
-  [
-    types.Migration("", 1, "Test1", [], []),
-    types.Migration("", 2, "Test2", [], []),
-    types.Migration("", 3, "Test3", [], []),
-    types.Migration("", 4, "Test4", [], []),
-    types.Migration("", 5, "Test5", [], []),
-  ]
-  |> fs.find_migrations_between(3, 1)
-  |> should.be_ok
-  |> should.equal([
-    types.Migration("", 3, "Test3", [], []),
-    types.Migration("", 2, "Test2", [], []),
-    types.Migration("", 1, "Test1", [], []),
-  ])
-}
-
-pub fn find_migrations_between_fails_if_one_missing_test() {
-  [
-    types.Migration("", 1, "Test1", [], []),
-    types.Migration("", 2, "Test2", [], []),
-    types.Migration("", 4, "Test4", [], []),
-    types.Migration("", 5, "Test5", [], []),
-  ]
-  |> fs.find_migrations_between(1, 4)
-  |> should.be_error
-  |> should.equal(types.MigrationNotFoundError(3))
+  Ok(Nil)
 }
 
 pub fn get_migrations_test() {
@@ -194,7 +154,7 @@ pub fn get_migrations_test() {
   let migs =
     fs.get_migrations()
     |> should.be_ok()
-    |> list.reverse
+    |> list.sort(migrations.compare_migrations)
   use #(first, rest) <- result.try(
     list.pop(migs, fn(_) { True })
     |> result.replace_error("No migration found !"),
@@ -203,13 +163,14 @@ pub fn get_migrations_test() {
     list.first(rest) |> result.replace_error("Only one migration found !"),
   )
 
-  first.number |> should.equal(1)
+  first.timestamp |> should.equal(naive_datetime.literal("2024-01-01 12:32:46"))
   first.name |> should.equal("Test1")
   first.queries_up
   |> should.equal(["create table todos(id uuid primary key, title text);"])
   first.queries_down |> should.equal(["drop table todos;"])
 
-  second.number |> should.equal(2)
+  second.timestamp
+  |> should.equal(naive_datetime.literal("2024-09-22 06:54:13"))
   second.name |> should.equal("Test2")
   second.queries_up
   |> should.equal([
@@ -221,9 +182,10 @@ pub fn get_migrations_test() {
 }
 
 fn setup_and_teardown_migrations(test_cb: fn() -> Result(a, b)) {
-  let dir = "./test/migrations"
-  let mig_1 = dir <> "/1-Test1.sql"
-  let mig_2 = dir <> "/2-Test2.sql"
+  let dir = "priv/migrations"
+  let mig_1 = dir <> "/20240101123246-Test1.sql"
+  let mig_2 = dir <> "/20240922065413-Test2.sql"
+  let assert Ok(_) = simplifile.create_directory("priv")
   let assert Ok(_) = simplifile.create_directory(dir)
   let assert Ok(_) = simplifile.create_file(mig_1)
   let assert Ok(_) = simplifile.create_file(mig_2)
@@ -254,7 +216,7 @@ fn setup_and_teardown_migrations(test_cb: fn() -> Result(a, b)) {
 
   let test_result = test_cb()
 
-  let assert Ok(_) = simplifile.delete(dir)
+  let assert Ok(_) = simplifile.delete("priv")
 
   test_result |> should.be_ok()
 }
@@ -280,4 +242,24 @@ pub fn write_schema_file_test() {
 
   result_write |> should.be_ok
   result_read |> should.be_ok |> should.equal("this is a test")
+}
+
+pub fn create_new_migration_file_test() {
+  use <- setup_and_teardown_migrations()
+
+  let timestamp = naive_datetime.literal("2024-11-17 18:36:41")
+
+  fs.create_new_migration_file(timestamp, "MyNewMigration")
+  |> should.be_ok
+  simplifile.read("priv/migrations/20241117183641-MyNewMigration.sql")
+  |> should.be_ok
+  |> should.equal(
+    "--- migration:up
+
+--- migration:down
+
+--- migration:end",
+  )
+
+  Ok(Nil)
 }

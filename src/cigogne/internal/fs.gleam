@@ -1,15 +1,18 @@
 import cigogne/internal/utils
 import cigogne/types
 import gleam/bool
-import gleam/int
 import gleam/list
 import gleam/result
 import gleam/string
 import globlin
 import globlin_fs
 import simplifile
+import tempo
+import tempo/naive_datetime
 
-const migration_file_pattern = "**/migrations/*.sql"
+const migrations_folder = "priv/migrations"
+
+const migration_file_pattern = migrations_folder <> "/*.sql"
 
 const schema_file_path = "./sql.schema"
 
@@ -25,7 +28,7 @@ pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
     "Something is wrong with the search pattern !",
   ))
   |> result.then(fn(pattern) {
-    globlin_fs.glob(pattern, globlin_fs.RegularFiles)
+    globlin_fs.glob_from(pattern, migrations_folder, globlin_fs.RegularFiles)
     |> result.replace_error(types.FileError(
       "There was a problem accessing some files/folders !",
     ))
@@ -60,20 +63,26 @@ fn read_migration_file(
 
 pub fn parse_file_name(
   path: String,
-) -> Result(#(Int, String), types.MigrateError) {
+) -> Result(#(tempo.NaiveDateTime, String), types.MigrateError) {
   use <- bool.guard(
     !string.ends_with(path, ".sql"),
     Error(types.FileNameError(path)),
   )
 
-  let num_and_name =
+  let ts_and_name =
     string.split(path, "/")
     |> list.last
     |> result.map(string.drop_end(_, 4))
     |> result.then(string.split_once(_, "-"))
-  let num = num_and_name |> result.map(fn(v) { v.0 }) |> result.then(int.parse)
 
-  case num, num_and_name {
+  let ts =
+    ts_and_name
+    |> result.then(fn(v) {
+      naive_datetime.parse(v.0, "YYYYMMDDHHmmss")
+      |> result.replace_error(Nil)
+    })
+
+  case ts, ts_and_name {
     Ok(n), Ok(#(_, name)) -> Ok(#(n, name))
     _, _ -> Error(types.FileNameError(path))
   }
@@ -113,28 +122,6 @@ fn split_queries(queries: String) -> List(String) {
   |> list.map(fn(q) { q <> ";" })
 }
 
-pub fn find_migration(
-  migrations: List(types.Migration),
-  migration_number: Int,
-) -> Result(types.Migration, types.MigrateError) {
-  list.find(migrations, fn(m) { m.number == migration_number })
-  |> result.replace_error(types.MigrationNotFoundError(migration_number))
-}
-
-pub fn find_migrations_between(
-  migrations: List(types.Migration),
-  migration_from: Int,
-  migration_to: Int,
-) -> Result(List(types.Migration), types.MigrateError) {
-  let migration_range = case migration_to, migration_from {
-    a, b if a == b -> []
-    a, b if a > b -> list.range(b + 1, a)
-    a, b -> list.range(b, a)
-  }
-  migration_range
-  |> list.try_map(find_migration(migrations, _))
-}
-
 pub fn read_schema_file() -> Result(String, types.MigrateError) {
   simplifile.read(schema_file_path)
   |> result.replace_error(types.FileError(schema_file_path))
@@ -143,4 +130,31 @@ pub fn read_schema_file() -> Result(String, types.MigrateError) {
 pub fn write_schema_file(content: String) -> Result(Nil, types.MigrateError) {
   simplifile.write(schema_file_path, content)
   |> result.replace_error(types.FileError(schema_file_path))
+}
+
+pub fn create_new_migration_file(
+  timestamp: tempo.NaiveDateTime,
+  name: String,
+) -> Result(Nil, types.MigrateError) {
+  let file_path =
+    migrations_folder
+    <> "/"
+    <> timestamp |> naive_datetime.format("YYYYMMDDHHmmss")
+    <> "-"
+    <> name
+    <> ".sql"
+
+  simplifile.create_file(file_path)
+  |> result.replace_error(types.FileError(file_path))
+  |> result.then(fn(_) {
+    file_path
+    |> simplifile.write(
+      migration_up_guard
+      <> "\n\n"
+      <> migration_down_guard
+      <> "\n\n"
+      <> migration_end_guard,
+    )
+    |> result.replace_error(types.FileError(file_path))
+  })
 }
