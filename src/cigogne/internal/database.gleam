@@ -22,11 +22,11 @@ fn get_config(url: String) -> Result(pog.Config, types.MigrateError) {
 
 pub fn execute_batch(
   connection: pog.Connection,
-  migration_number: Int,
   queries: List(pog.Query(_)),
+  ignore_errors: Bool,
 ) -> Result(Nil, types.MigrateError) {
   use transaction <- transaction(connection)
-  handle_queries(transaction, migration_number, queries)
+  handle_queries(transaction, queries, ignore_errors)
 }
 
 fn transaction(
@@ -39,13 +39,13 @@ fn transaction(
 
 fn handle_queries(
   conn: pog.Connection,
-  migration_number: Int,
   queries: List(pog.Query(_)),
+  ignore_errors: Bool,
 ) -> Result(Nil, String) {
   let result = exec_queries(conn, queries)
 
-  case migration_number, result {
-    0, Error(pog.ConstraintViolated(_, "_migrations_pkey", _)) -> Ok(Nil)
+  case ignore_errors, result {
+    True, Error(pog.ConstraintViolated(_, "_migrations_pkey", _)) -> Ok(Nil)
     _, _ -> result |> result.map_error(utils.describe_query_error)
   }
 }
