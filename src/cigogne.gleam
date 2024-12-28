@@ -3,7 +3,7 @@ import cigogne/internal/database
 import cigogne/internal/fs
 import cigogne/types
 import gleam/bool
-import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/int
 import gleam/io
 import gleam/list
@@ -242,7 +242,11 @@ fn get_last_applied_migration(
   conn: pog.Connection,
 ) -> Result(#(Int, String), types.MigrateError) {
   pog.query(query_last_applied_migration)
-  |> pog.returning(dynamic.tuple2(dynamic.int, dynamic.string))
+  |> pog.returning({
+    use a <- decode.field(0, decode.int)
+    use b <- decode.field(1, decode.string)
+    decode.success(#(a, b))
+  })
   |> pog.execute(conn)
   |> result.map_error(types.PGOQueryError)
   |> result.then(fn(returned) {

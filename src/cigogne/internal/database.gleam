@@ -1,8 +1,6 @@
 import cigogne/internal/utils
 import cigogne/types
 import envoy
-import gleam/io
-import gleam/list
 import gleam/result
 import pog
 import shellout
@@ -59,11 +57,6 @@ fn exec_queries(
   case queries {
     [] -> Ok(Nil)
     [q, ..rest] -> {
-      // io.println("Executing query : " <> q.sql)
-      // io.print(" with values ")
-      // io.debug(list.reverse(q.parameters))
-      // io.println("")
-
       let res = q |> pog.execute(conn)
       case res {
         Error(err) -> Error(err)
