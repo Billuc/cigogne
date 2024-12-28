@@ -25,7 +25,7 @@ Cigogne can also be installed as a regular dependency and used in your project. 
 
 To use `cigogne`, you first have to create your migration scripts in a `migrations` folder.
 Cigogne will look for `.sql` files in these folders to get your migrations. Cigogne expects 
-the sql files to have the following format `<MigrationNumber>-<MigrationName>.sql`. This way we 
+the sql files to have the following format `<MigrationTimestamps>-<MigrationName>.sql`. This way we 
 can get an order in which migrations should be applied and a descriptive name right away. It also
 allows for easy sorting of your migration scripts and forces you to give it a meaningful name.
 
@@ -61,10 +61,12 @@ gleam run -m cigogne up
 gleam run -m cigogne down
 # Apply all migrations not yet applied
 gleam run -m cigogne last
-# Apply/roll back migrations until migration N is reached
-gleam run -m cigogne to N
+# Apply/roll back N migrations (apply if N > 0, roll back otherwise)
+gleam run -m cigogne apply N
 # Show the last applied migration and the current DB schema
 gleam run -m cigogne show
+# Create a new migration with name NAME
+gleam run -m cigogne new NAME
 ```
 
 You can also use it in your server initalisation function to make sure your schema is up-to-date with your code.

@@ -1,4 +1,4 @@
-import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/int
 import gleam/list
 import gleam/result
@@ -49,7 +49,7 @@ pub fn describe_transaction_error(error: pog.TransactionError) -> String {
   }
 }
 
-pub fn describe_decode_error(error: dynamic.DecodeError) -> String {
+pub fn describe_decode_error(error: decode.DecodeError) -> String {
   "Expecting : "
   <> error.expected
   <> ", Got : "
