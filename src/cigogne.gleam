@@ -4,7 +4,6 @@ import cigogne/internal/fs
 import cigogne/internal/migrations
 import cigogne/internal/utils
 import cigogne/types
-import gleam/bool
 import gleam/dynamic/decode
 import gleam/int
 import gleam/io
@@ -290,7 +289,11 @@ fn get_applied_migrations(
   conn: pog.Connection,
 ) -> Result(List(types.Migration), types.MigrateError) {
   pog.query(query_applied_migrations)
-  |> pog.returning(dynamic.tuple2(pog.decode_timestamp, dynamic.string))
+  |> pog.returning({
+    use timestamp <- decode.field(0, pog.timestamp_decoder())
+    use name <- decode.field(1, decode.string)
+    decode.success(#(timestamp, name))
+  })
   |> pog.execute(conn)
   |> result.map_error(types.PGOQueryError)
   |> result.then(fn(returned) {
