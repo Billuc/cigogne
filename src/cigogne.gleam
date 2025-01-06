@@ -130,7 +130,7 @@ pub fn new_migration(name: String) -> Result(Nil, types.MigrateError) {
 pub fn apply_next_migration(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
-  use _ <- result.try(apply_migration(connection, migration_zero()))
+  use _ <- result.try(apply_migration_zero_if_not_applied(connection))
   use applied <- result.try(get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
   use migration <- result.try(migrations.find_first_non_applied_migration(
@@ -146,7 +146,7 @@ pub fn apply_next_migration(
 pub fn roll_back_previous_migration(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
-  use _ <- result.try(apply_migration(connection, migration_zero()))
+  use _ <- result.try(apply_migration_zero_if_not_applied(connection))
   use last <- result.try(get_last_applied_migration(connection))
   use migs <- result.try(fs.get_migrations())
   use migration <- result.try(migrations.find_migration(migs, last))
@@ -160,17 +160,19 @@ pub fn execute_n_migrations(
   connection: pog.Connection,
   count: Int,
 ) -> Result(Nil, types.MigrateError) {
-  use _ <- result.try(apply_migration(connection, migration_zero()))
+  use _ <- result.try(apply_migration_zero_if_not_applied(connection))
   use applied <- result.try(get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
 
   migrations.find_n_migrations_to_apply(migs, applied, count)
-  |> result.then(list.try_each(_, fn(migration) {
-    case count > 0 {
-      True -> apply_migration(connection, migration)
-      False -> roll_back_migration(connection, migration)
-    }
-  }))
+  |> result.then(
+    list.try_each(_, fn(migration) {
+      case count > 0 {
+        True -> apply_migration(connection, migration)
+        False -> roll_back_migration(connection, migration)
+      }
+    }),
+  )
 }
 
 /// Apply migrations until we reach the last defined migration.  
@@ -179,14 +181,26 @@ pub fn execute_n_migrations(
 pub fn execute_migrations_to_last(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
-  use _ <- result.try(apply_migration(connection, migration_zero()))
+  use _ <- result.try(apply_migration_zero_if_not_applied(connection))
   use applied <- result.try(get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
 
   migrations.find_all_non_applied_migration(migs, applied)
-  |> result.then(list.try_each(_, fn(migration) {
-    apply_migration(connection, migration)
-  }))
+  |> result.then(
+    list.try_each(_, fn(migration) { apply_migration(connection, migration) }),
+  )
+}
+
+fn apply_migration_zero_if_not_applied(
+  connection: pog.Connection,
+) -> Result(Nil, types.MigrateError) {
+  case get_applied_migrations(connection) {
+    // 42P01: undefined_table --> _migrations table missing
+    Error(types.PGOQueryError(pog.PostgresqlError(code, _, _)))
+      if code == "42P01"
+    -> apply_migration(connection, migration_zero())
+    _ -> Ok(Nil)
+  }
 }
 
 /// Apply a migration to the database.  
