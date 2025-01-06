@@ -17,6 +17,10 @@ jobs:
           rebar3-version: "3"
           # elixir-version: "1.15.4"
       - run: gleam deps download
+      - name: Bumping version in gleam.toml
+        run: |
+          TAG=${{ github.ref_name }}
+          sed -i -r 's/version = "[0-9.]+"/version = "'${TAG#v}'"/g' gleam.toml
       - name: Publishing to Hex
         run: gleam publish -y
         env:
