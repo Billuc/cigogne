@@ -135,7 +135,7 @@ pub fn write_schema_file(content: String) -> Result(Nil, types.MigrateError) {
 pub fn create_new_migration_file(
   timestamp: tempo.NaiveDateTime,
   name: String,
-) -> Result(Nil, types.MigrateError) {
+) -> Result(String, types.MigrateError) {
   let file_path =
     migrations_folder
     <> "/"
@@ -157,4 +157,5 @@ pub fn create_new_migration_file(
     )
     |> result.replace_error(types.FileError(file_path))
   })
+  |> result.map(fn(_) { file_path })
 }
