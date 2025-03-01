@@ -23,8 +23,8 @@ Cigogne can also be installed as a regular dependency and used in your project. 
 
 ## Usage
 
-To use `cigogne`, you first have to create your migration scripts in a `migrations` folder.
-Cigogne will look for `.sql` files in these folders to get your migrations. Cigogne expects 
+To use `cigogne`, you first have to create your migration scripts in the `priv/migrations` folder.
+Cigogne will look for `.sql` files in this folder to get your migrations. Cigogne expects 
 the sql files to have the following format `<MigrationTimestamps>-<MigrationName>.sql`. This way we 
 can get an order in which migrations should be applied and a descriptive name right away. It also
 allows for easy sorting of your migration scripts and forces you to give it a meaningful name.
@@ -75,14 +75,13 @@ You can also use it in your server initalisation function to make sure your sche
 import cigogne
 
 pub fn init() -> Nil {
-    let db_url <- get_db_url_from_env() // For example
-    let db_connection <- db_connect(db_url)
+    use db_connection <- db_connect() // to be implemented
     cigogne.execute_migrations_to_last(db_connection)
-    |> result.then(stock.update_schema_file(db_url))
+    |> result.then(cigogne.update_schema_file(db_url))
     |> result.map_error(cigogne.print_error)
     |> result.unwrap_both
 
-    // Or directly
+    // Or directly by using environment variables
     cigogne.migrate_to_last()
     |> result.map_error(cigogne.print_error)
     |> result.unwrap_both
@@ -90,7 +89,7 @@ pub fn init() -> Nil {
 ```
 
 > By default, `cigogne` gets the database url from the `DATABASE_URL` environment variable.  
-> Also, the migrate_up, _down, _to, and _to_last functions systematically update a schema file
+> Also, the migrate_up, _down, _n, and _to_last functions systematically update a schema file
 > whenever they are successful.
 
 Further documentation can be found at <https://hexdocs.pm/cigogne>.
@@ -98,7 +97,7 @@ Further documentation can be found at <https://hexdocs.pm/cigogne>.
 ## Development ideas
 
 I have a few ideas to improve this library that I may implement in the future.  
-Let me know if some of those are of interest to you and I will prioritze them.
+Let me know if some of those are of interest to you and I will prioritize them.
 
 - Specify default schema (for schema file) via an envvar.
 
