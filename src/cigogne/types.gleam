@@ -50,7 +50,11 @@ pub fn print_migrate_error(error: MigrateError) -> Nil {
       )
     EnvVarError(name) -> io.println_error("Couldn't find env var " <> name)
     FileError(path) ->
-      io.println_error("Couldn't access file at path [" <> path <> "]")
+      io.println_error(
+        "Couldn't access file at path ["
+        <> path
+        <> "]\nCheck the file or the parent folders exist and that you have the right permissions.",
+      )
     FileNameError(path) ->
       io.println_error(
         "Migration filenames should have the format <MigrationNumber>-<MigrationName>.sql ! Got: ["
