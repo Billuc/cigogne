@@ -144,7 +144,8 @@ pub fn create_new_migration_file(
     <> name
     <> ".sql"
 
-  simplifile.create_file(file_path)
+  simplifile.create_directory_all(migrations_folder)
+  |> result.then(fn(_) { simplifile.create_file(file_path) })
   |> result.replace_error(types.FileError(file_path))
   |> result.then(fn(_) {
     file_path

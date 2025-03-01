@@ -185,8 +185,7 @@ fn setup_and_teardown_migrations(test_cb: fn() -> Result(a, b)) {
   let dir = "priv/migrations"
   let mig_1 = dir <> "/20240101123246-Test1.sql"
   let mig_2 = dir <> "/20240922065413-Test2.sql"
-  let assert Ok(_) = simplifile.create_directory("priv")
-  let assert Ok(_) = simplifile.create_directory(dir)
+  let assert Ok(_) = simplifile.create_directory_all(dir)
   let assert Ok(_) = simplifile.create_file(mig_1)
   let assert Ok(_) = simplifile.create_file(mig_2)
   let assert Ok(_) =
@@ -262,4 +261,16 @@ pub fn create_new_migration_file_test() {
   )
 
   Ok(Nil)
+}
+
+pub fn create_new_migration_create_priv_migrations_folder() {
+  let timestamp = naive_datetime.literal("2024-11-17 18:36:41")
+  fs.create_new_migration_file(timestamp, "MyNewMigration")
+  |> should.be_ok
+
+  simplifile.is_directory("priv/migrations")
+  |> should.be_ok
+  |> should.equal(True)
+
+  simplifile.delete("priv")
 }
