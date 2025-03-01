@@ -119,9 +119,13 @@ pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
-/// 
+/// Create a new migration file in the `priv/migrations` folder with the provided name.
 pub fn new_migration(name: String) -> Result(Nil, types.MigrateError) {
-  fs.create_new_migration_file(naive_datetime.now_utc(), name)
+  use path <- result.map(fs.create_new_migration_file(
+    naive_datetime.now_utc(),
+    name,
+  ))
+  io.println("Migration file created : " <> path)
 }
 
 /// Apply the next migration that wasn't applied yet.  
@@ -213,8 +217,7 @@ pub fn apply_migration(
     "\nApplying migration "
     <> migration.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
     <> "-"
-    <> migration.name
-    <> "\n",
+    <> migration.name,
   )
 
   let queries =
@@ -231,6 +234,14 @@ pub fn apply_migration(
     queries,
     migrations.compare_migrations(migration, migration_zero()) == order.Eq,
   )
+  |> result.map(fn(_) {
+    io.println(
+      "Migration applied : "
+      <> migration.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
+      <> "-"
+      <> migration.name,
+    )
+  })
 }
 
 /// Roll back a migration from the database.  
@@ -243,8 +254,7 @@ pub fn roll_back_migration(
     "\nRolling back migration "
     <> migration.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
     <> "-"
-    <> migration.name
-    <> "\n",
+    <> migration.name,
   )
 
   let queries =
@@ -261,6 +271,14 @@ pub fn roll_back_migration(
     queries,
     migrations.compare_migrations(migration, migration_zero()) == order.Eq,
   )
+  |> result.map(fn(_) {
+    io.println(
+      "Migration rolled back : "
+      <> migration.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
+      <> "-"
+      <> migration.name,
+    )
+  })
 }
 
 /// Get all defined migrations in your project.  
@@ -279,6 +297,7 @@ pub fn get_schema(url: String) -> Result(String, types.MigrateError) {
 pub fn update_schema_file(url: String) -> Result(Nil, types.MigrateError) {
   use schema <- result.try(get_schema(url))
   fs.write_schema_file(schema)
+  |> result.map(fn(_) { io.println("Schema file updated") })
 }
 
 fn get_last_applied_migration(
