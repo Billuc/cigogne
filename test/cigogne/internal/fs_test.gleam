@@ -174,8 +174,8 @@ pub fn get_migrations_test() {
   second.name |> should.equal("Test2")
   second.queries_up
   |> should.equal([
-    "create table tags(id serial primary key, tag text not null);",
-    "alter table todos add column tag serial references tags(id);",
+    "create table tags(id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, tag text not null);",
+    "alter table todos add column tag integer references tags(id);",
   ])
   second.queries_down
   |> should.equal(["alter table todos drop column tag;", "drop table tags;"])
@@ -204,8 +204,8 @@ fn setup_and_teardown_migrations(test_cb: fn() -> Result(a, b)) {
       mig_2,
       "
   --- migration:up
-  create table tags(id serial primary key, tag text not null);
-  alter table todos add column tag serial references tags(id);
+  create table tags(id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, tag text not null);
+  alter table todos add column tag integer references tags(id);
   --- migration:down
   alter table todos drop column tag;
   drop table tags;

@@ -20,7 +20,7 @@ fn migration_zero() -> types.Migration {
     "CreateMigrationsTable",
     [
       "CREATE TABLE IF NOT EXISTS _migrations(
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     name VARCHAR(255) NOT NULL,
     createdAt TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     appliedAt TIMESTAMP NOT NULL DEFAULT NOW()
