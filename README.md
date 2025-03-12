@@ -94,6 +94,22 @@ pub fn init() -> Nil {
 
 Further documentation can be found at <https://hexdocs.pm/cigogne>.
 
+### no_down migrations
+
+The `cigogne/no_down` module provides an alternative way of writing migrations.
+
+As its name implies, this module does not need "down migrations" and can be simplified to a simple sql script 
+corresponding to the "up migration".
+
+> If you want to revert a change, you then have to create a new migration.  
+> Also, the `--- migration:` comments are now unnecessary.
+
+Another important change is that instead of using timestamp based identifiers, this module uses integer based identifiers. 
+The motivation behind this change is that is makes migration conflicts more easily detectable.
+If two migrations have the same index number (maybe after a merge), an error will be displayed asking you to choose which migration should be executed first.
+
+> Note that this module is NOT compatible with the original `cigogne` module
+
 ## Development ideas
 
 I have a few ideas to improve this library that I may implement in the future.  

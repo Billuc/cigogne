@@ -92,7 +92,7 @@ pub fn print_migrate_error(error: MigrateError) -> Nil {
         <> index |> int.to_string
         <> " ["
         <> names |> string.join(", ")
-        <> "]",
+        <> "]\nCheck which migration should be applied before the other and modify the indices accordingly before continuing !",
       )
   }
 }
