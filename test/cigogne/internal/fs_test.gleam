@@ -138,6 +138,95 @@ abc;
   |> should.equal(#(["foo;", "bar;"], ["baz;", "abc;"]))
 }
 
+pub fn split_queries_with_literal_test() {
+  "
+--- migration:up
+INSERT INTO foo VALUES ('titi;toto');
+--- migration:down
+DELETE FROM foo WHERE name = $$Dianne's horse;tutu$$;
+--- migration:end
+  "
+  |> fs.parse_migration_file
+  |> should.be_ok
+  |> should.equal(
+    #(["INSERT INTO foo VALUES ('titi;toto');"], [
+      "DELETE FROM foo WHERE name = $$Dianne's horse;tutu$$;",
+    ]),
+  )
+}
+
+pub fn split_complex_queries_test() {
+  "
+--- migration:up
+INSERT INTO foo VALUES ('titi;toto');
+SELECT 'foo'
+'bar';
+SELECT 'Dianne''s horse'
+--- migration:down
+DELETE FROM foo WHERE name = $$Dianne's horse;tutu$$;
+SELECT * from foo WHERE id = $1;
+$function$
+BEGIN
+    RETURN ($1 ~ $q$[\\t\\r\\n\\v\\]$q$);
+END;
+$function$
+--- migration:end
+  "
+  |> fs.parse_migration_file
+  |> should.be_ok
+  |> should.equal(
+    #(
+      [
+        "INSERT INTO foo VALUES ('titi;toto');", "SELECT 'foo'\n'bar';",
+        "SELECT 'Dianne''s horse';",
+      ],
+      [
+        "DELETE FROM foo WHERE name = $$Dianne's horse;tutu$$;",
+        "SELECT * from foo WHERE id = $1;",
+        "$function$\nBEGIN\n    RETURN ($1 ~ $q$[\\t\\r\\n\\v\\]$q$);\nEND;\n$function$;",
+      ],
+    ),
+  )
+}
+
+pub fn split_queries_example_from_issue_test() {
+  "
+--- migration:up
+CREATE FUNCTION set_current_timestamp_updated_at()
+    RETURNS TRIGGER AS $$
+DECLARE
+_new record;
+BEGIN
+  _new := NEW;
+  _new.updated_at = now();
+RETURN _new;
+END;
+$$ LANGUAGE plpgsql;
+--- migration:down
+SELECT 1;
+--- migration:end
+  "
+  |> fs.parse_migration_file
+  |> should.be_ok
+  |> should.equal(
+    #(
+      [
+        "CREATE FUNCTION set_current_timestamp_updated_at()
+    RETURNS TRIGGER AS $$
+DECLARE
+_new record;
+BEGIN
+  _new := NEW;
+  _new.updated_at = now();
+RETURN _new;
+END;
+$$ LANGUAGE plpgsql;",
+      ],
+      ["SELECT 1;"],
+    ),
+  )
+}
+
 pub fn simplifile_read_directory_test() {
   use <- setup_and_teardown_migrations()
 

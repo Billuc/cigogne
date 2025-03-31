@@ -1,5 +1,4 @@
 import cigogne/internal/utils
-import gleam/io
 import gleeunit/should
 import pog
 import tempo/naive_datetime
