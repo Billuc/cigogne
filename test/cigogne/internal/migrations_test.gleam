@@ -12,6 +12,7 @@ pub fn find_migration_test() {
       "Test1",
       ["up1.1", "up1.2"],
       ["down1.1"],
+      "",
     ),
     types.Migration(
       "",
@@ -19,27 +20,26 @@ pub fn find_migration_test() {
       "Test2",
       ["up2.1", "up2.2"],
       ["down2.1", "down2.2"],
+      "",
     ),
   ]
-  |> migrations.find_migration(
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-17 21:02:02"),
-      "Test2",
-      [],
-      [],
-    ),
-  )
+  |> migrations.find_migration(types.Migration(
+    "",
+    naive_datetime.literal("2024-12-17 21:02:02"),
+    "Test2",
+    [],
+    [],
+    "",
+  ))
   |> should.be_ok
-  |> should.equal(
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-17 21:02:02"),
-      "Test2",
-      ["up2.1", "up2.2"],
-      ["down2.1", "down2.2"],
-    ),
-  )
+  |> should.equal(types.Migration(
+    "",
+    naive_datetime.literal("2024-12-17 21:02:02"),
+    "Test2",
+    ["up2.1", "up2.2"],
+    ["down2.1", "down2.2"],
+    "",
+  ))
 }
 
 pub fn migration_not_found_if_wrong_timestamp_test() {
@@ -50,6 +50,7 @@ pub fn migration_not_found_if_wrong_timestamp_test() {
       "Test1",
       ["up1.1", "up1.2"],
       ["down1.1"],
+      "",
     ),
     types.Migration(
       "",
@@ -57,17 +58,17 @@ pub fn migration_not_found_if_wrong_timestamp_test() {
       "Test2",
       ["up2.1", "up2.2"],
       ["down2.1", "down2.2"],
+      "",
     ),
   ]
-  |> migrations.find_migration(
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-17 21:03:03"),
-      "Test2",
-      [],
-      [],
-    ),
-  )
+  |> migrations.find_migration(types.Migration(
+    "",
+    naive_datetime.literal("2024-12-17 21:03:03"),
+    "Test2",
+    [],
+    [],
+    "",
+  ))
   |> should.be_error
   |> should.equal(types.MigrationNotFoundError(
     naive_datetime.literal("2024-12-17 21:03:03"),
@@ -83,6 +84,7 @@ pub fn migration_not_found_if_wrong_name_test() {
       "Test1",
       ["up1.1", "up1.2"],
       ["down1.1"],
+      "",
     ),
     types.Migration(
       "",
@@ -90,17 +92,17 @@ pub fn migration_not_found_if_wrong_name_test() {
       "Test2",
       ["up2.1", "up2.2"],
       ["down2.1", "down2.2"],
+      "",
     ),
   ]
-  |> migrations.find_migration(
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-17 21:02:02"),
-      "WRONG",
-      [],
-      [],
-    ),
-  )
+  |> migrations.find_migration(types.Migration(
+    "",
+    naive_datetime.literal("2024-12-17 21:02:02"),
+    "WRONG",
+    [],
+    [],
+    "",
+  ))
   |> should.be_error
   |> should.equal(types.MigrationNotFoundError(
     naive_datetime.literal("2024-12-17 21:02:02"),
@@ -116,6 +118,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "Test22",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -123,6 +126,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -130,6 +134,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "AAA",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -137,6 +142,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "Test2",
       [],
       [],
+      "",
     ),
   ]
   |> list.sort(migrations.compare_migrations)
@@ -147,6 +153,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -154,6 +161,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -161,6 +169,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "Test22",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -168,6 +177,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "AAA",
       [],
       [],
+      "",
     ),
   ])
 }
@@ -180,6 +190,7 @@ pub fn find_first_non_applied_migration_all_applied_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -187,6 +198,7 @@ pub fn find_first_non_applied_migration_all_applied_test() {
       "Test2",
       [],
       [],
+      "",
     ),
   ]
   let applied_migrations = [
@@ -196,6 +208,7 @@ pub fn find_first_non_applied_migration_all_applied_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -203,6 +216,7 @@ pub fn find_first_non_applied_migration_all_applied_test() {
       "Test2",
       [],
       [],
+      "",
     ),
   ]
 
@@ -219,6 +233,7 @@ pub fn test_find_first_non_applied_migration_is_last() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -226,6 +241,7 @@ pub fn test_find_first_non_applied_migration_is_last() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -233,6 +249,7 @@ pub fn test_find_first_non_applied_migration_is_last() {
       "Test3",
       [],
       [],
+      "",
     ),
   ]
   let applied_migrations = [
@@ -242,6 +259,7 @@ pub fn test_find_first_non_applied_migration_is_last() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -249,20 +267,20 @@ pub fn test_find_first_non_applied_migration_is_last() {
       "Test2",
       [],
       [],
+      "",
     ),
   ]
 
   migrations.find_first_non_applied_migration(migrations, applied_migrations)
   |> should.be_ok
-  |> should.equal(
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-21 19:21:23"),
-      "Test3",
-      [],
-      [],
-    ),
-  )
+  |> should.equal(types.Migration(
+    "",
+    naive_datetime.literal("2024-12-21 19:21:23"),
+    "Test3",
+    [],
+    [],
+    "",
+  ))
 }
 
 pub fn find_first_non_applied_migration_is_not_last_test() {
@@ -273,6 +291,7 @@ pub fn find_first_non_applied_migration_is_not_last_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -280,6 +299,7 @@ pub fn find_first_non_applied_migration_is_not_last_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -287,6 +307,7 @@ pub fn find_first_non_applied_migration_is_not_last_test() {
       "Test3",
       [],
       [],
+      "",
     ),
   ]
   let applied_migrations = [
@@ -296,6 +317,7 @@ pub fn find_first_non_applied_migration_is_not_last_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -303,20 +325,20 @@ pub fn find_first_non_applied_migration_is_not_last_test() {
       "Test3",
       [],
       [],
+      "",
     ),
   ]
 
   migrations.find_first_non_applied_migration(migrations, applied_migrations)
   |> should.be_ok
-  |> should.equal(
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-21 19:21:22"),
-      "Test2",
-      [],
-      [],
-    ),
-  )
+  |> should.equal(types.Migration(
+    "",
+    naive_datetime.literal("2024-12-21 19:21:22"),
+    "Test2",
+    [],
+    [],
+    "",
+  ))
 }
 
 pub fn find_first_non_applied_migration_skips_removed_migration_test() {
@@ -327,6 +349,7 @@ pub fn find_first_non_applied_migration_skips_removed_migration_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -334,6 +357,7 @@ pub fn find_first_non_applied_migration_skips_removed_migration_test() {
       "Test3",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -341,6 +365,7 @@ pub fn find_first_non_applied_migration_skips_removed_migration_test() {
       "Test4",
       [],
       [],
+      "",
     ),
   ]
   let applied_migrations = [
@@ -350,6 +375,7 @@ pub fn find_first_non_applied_migration_skips_removed_migration_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -357,6 +383,7 @@ pub fn find_first_non_applied_migration_skips_removed_migration_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -364,20 +391,20 @@ pub fn find_first_non_applied_migration_skips_removed_migration_test() {
       "Test3",
       [],
       [],
+      "",
     ),
   ]
 
   migrations.find_first_non_applied_migration(migrations, applied_migrations)
   |> should.be_ok
-  |> should.equal(
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-21 19:21:24"),
-      "Test4",
-      [],
-      [],
-    ),
-  )
+  |> should.equal(types.Migration(
+    "",
+    naive_datetime.literal("2024-12-21 19:21:24"),
+    "Test4",
+    [],
+    [],
+    "",
+  ))
 }
 
 pub fn find_all_non_applied_migration_test() {
@@ -388,6 +415,7 @@ pub fn find_all_non_applied_migration_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -395,6 +423,7 @@ pub fn find_all_non_applied_migration_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -402,6 +431,7 @@ pub fn find_all_non_applied_migration_test() {
       "Test3",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -409,6 +439,7 @@ pub fn find_all_non_applied_migration_test() {
       "Test4",
       [],
       [],
+      "",
     ),
   ]
   let applied_migrations = [
@@ -418,6 +449,7 @@ pub fn find_all_non_applied_migration_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -425,6 +457,7 @@ pub fn find_all_non_applied_migration_test() {
       "Test3",
       [],
       [],
+      "",
     ),
   ]
 
@@ -437,6 +470,7 @@ pub fn find_all_non_applied_migration_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -444,6 +478,7 @@ pub fn find_all_non_applied_migration_test() {
       "Test4",
       [],
       [],
+      "",
     ),
   ])
 }
@@ -456,6 +491,7 @@ pub fn find_n_to_apply_positive_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -463,6 +499,7 @@ pub fn find_n_to_apply_positive_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -470,6 +507,7 @@ pub fn find_n_to_apply_positive_test() {
       "Test3",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -477,6 +515,7 @@ pub fn find_n_to_apply_positive_test() {
       "Test4",
       [],
       [],
+      "",
     ),
   ]
   let applied_migrations = [
@@ -486,6 +525,7 @@ pub fn find_n_to_apply_positive_test() {
       "Test1",
       [],
       [],
+      "",
     ),
   ]
 
@@ -498,6 +538,7 @@ pub fn find_n_to_apply_positive_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -505,6 +546,7 @@ pub fn find_n_to_apply_positive_test() {
       "Test3",
       [],
       [],
+      "",
     ),
   ])
 }
@@ -517,6 +559,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -524,6 +567,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -531,6 +575,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test3",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -538,6 +583,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test4",
       [],
       [],
+      "",
     ),
   ]
   let applied_migrations = [
@@ -547,6 +593,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test1",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -554,6 +601,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test2",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -561,6 +609,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test3",
       [],
       [],
+      "",
     ),
   ]
 
@@ -573,6 +622,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test3",
       [],
       [],
+      "",
     ),
     types.Migration(
       "",
@@ -580,6 +630,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "Test2",
       [],
       [],
+      "",
     ),
   ])
 }
