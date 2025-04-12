@@ -3,6 +3,7 @@ import cigogne/internal/migrations
 import cigogne/types
 import gleam/list
 import gleam/result
+import gleam/string
 import gleeunit/should
 import simplifile
 import tempo/naive_datetime
@@ -61,7 +62,7 @@ pub fn parse_migration_file_test() {
 CREATE TABLE IF NOT EXISTS users(id UUID PRIMARY KEY, name TEXT NOT NULL);
 --- migration:down
 DROP TABLE users;
---- migration:end  
+--- migration:end
   "
   |> fs.parse_migration_file
   |> should.be_ok
@@ -79,7 +80,7 @@ pub fn text_after_end_tag_is_ignored_test() {
   "
 --- migration:up
 foo;
---- migration:down  
+--- migration:down
 bar;
 --- migration:end
 baz;
@@ -232,6 +233,7 @@ pub fn simplifile_read_directory_test() {
 
   simplifile.read_directory("priv/migrations")
   |> should.be_ok
+  |> list.sort(string.compare)
   |> should.equal(["20240101123246-Test1.sql", "20240922065413-Test2.sql"])
 
   Ok(Nil)

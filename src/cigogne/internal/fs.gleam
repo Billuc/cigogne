@@ -50,15 +50,24 @@ pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
 fn read_migration_file(
   path: String,
 ) -> Result(types.Migration, types.MigrateError) {
-  use num_and_name <- result.try(parse_file_name(path))
+  use ts_and_name <- result.try(parse_file_name(path))
   use content <- result.try(
     simplifile.read(path) |> result.replace_error(types.FileError(path)),
   )
 
+  let sha256 = utils.make_sha256(content)
+
   case parse_migration_file(content) {
     Error(error) -> Error(types.ContentError(path, error))
-    Ok(#(up, down)) ->
-      Ok(types.Migration(path, num_and_name.0, num_and_name.1, up, down))
+    Ok(#(queries_up, queries_down)) ->
+      Ok(types.Migration(
+        path:,
+        queries_up:,
+        queries_down:,
+        timestamp: ts_and_name.0,
+        name: ts_and_name.1,
+        sha256:,
+      ))
   }
 }
 
