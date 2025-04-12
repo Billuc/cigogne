@@ -89,6 +89,8 @@ pub fn migrate_up() -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
+/// Verify the hash integrity of applied migrations.
+/// If an already applied migration has been modified, it should most likely be run again by the user.
 pub fn verify_applied_migration_hashes(
   conn: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
