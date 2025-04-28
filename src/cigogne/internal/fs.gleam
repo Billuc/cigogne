@@ -258,12 +258,7 @@ pub fn create_new_migration_file(
   name: String,
 ) -> Result(String, types.MigrateError) {
   let file_path =
-    migrations_folder
-    <> "/"
-    <> timestamp |> naive_datetime.format("YYYYMMDDHHmmss")
-    <> "-"
-    <> name
-    <> ".sql"
+    migrations_folder <> "/" <> to_migration_filename(timestamp, name)
 
   simplifile.create_directory_all(migrations_folder)
   |> result.then(fn(_) { simplifile.create_file(file_path) })
@@ -280,4 +275,11 @@ pub fn create_new_migration_file(
     |> result.replace_error(types.FileError(file_path))
   })
   |> result.map(fn(_) { file_path })
+}
+
+pub fn to_migration_filename(
+  timestamp: tempo.NaiveDateTime,
+  name: String,
+) -> String {
+  timestamp |> naive_datetime.format("YYYYMMDDHHmmss") <> "-" <> name <> ".sql"
 }
