@@ -259,6 +259,11 @@ pub fn get_migrations_test() {
   first.queries_up
   |> should.equal(["create table todos(id uuid primary key, title text);"])
   first.queries_down |> should.equal(["drop table todos;"])
+  first.sha256
+  |> string.lowercase
+  |> should.equal(
+    "02afc7915deabc0ddcafe808e814e360247d15191981688728339f506eb1b965",
+  )
 
   second.timestamp
   |> should.equal(naive_datetime.literal("2024-09-22 06:54:13"))
@@ -270,6 +275,11 @@ pub fn get_migrations_test() {
   ])
   second.queries_down
   |> should.equal(["alter table todos drop column tag;", "drop table tags;"])
+  second.sha256
+  |> string.lowercase
+  |> should.equal(
+    "144dab1f2240264aa6a01340b4a43f5483459fa842531a9b3b759c23a95ebb26",
+  )
 }
 
 fn setup_and_teardown_migrations(test_cb: fn() -> Result(a, b)) {

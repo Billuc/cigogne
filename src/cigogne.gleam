@@ -97,7 +97,7 @@ pub fn verify_applied_migration_hashes(
     use file <- result.try(migrations.find_migration(migs_file, mig))
     case mig.sha256 == file.sha256 {
       True -> Ok(Nil)
-      False -> Error(types.FileHashChanged(mig.name))
+      False -> Error(types.FileHashChanged(mig.timestamp, mig.name))
     }
   })
 }

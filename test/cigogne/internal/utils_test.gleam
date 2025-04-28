@@ -1,4 +1,5 @@
 import cigogne/internal/utils
+import gleam/string
 import gleeunit/should
 import pog
 import tempo/naive_datetime
@@ -26,4 +27,13 @@ pub fn pog_to_string_test() {
   pog.Timestamp(pog.Date(2410, 12, 24), pog.Time(16, 42, 0, 0))
   |> utils.pog_timestamp_to_string
   |> should.equal("2410-12-24 16:42:00")
+}
+
+pub fn make_sha256_test() {
+  "Hello world !"
+  |> utils.make_sha256()
+  |> string.lowercase()
+  |> should.equal(
+    "2f951d3adf29ab254d734286755e2131c397b6fc1894e6ffe5b236ea5e099ecf",
+  )
 }
