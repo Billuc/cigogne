@@ -29,6 +29,15 @@ pub fn execute_batch(
   handle_queries(transaction, queries, ignore_errors)
 }
 
+pub fn execute(
+  query: pog.Query(a),
+  connection: pog.Connection,
+) -> Result(List(a), types.MigrateError) {
+  pog.execute(query, connection)
+  |> result.map_error(types.PGOQueryError)
+  |> result.map(fn(res) { res.rows })
+}
+
 fn transaction(
   connection: pog.Connection,
   callback: fn(pog.Connection) -> Result(Nil, String),

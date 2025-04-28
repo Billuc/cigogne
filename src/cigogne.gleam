@@ -4,7 +4,6 @@ import cigogne/internal/fs
 import cigogne/internal/migrations
 import cigogne/internal/utils
 import cigogne/types
-import gleam/dynamic/decode
 import gleam/int
 import gleam/io
 import gleam/list
@@ -31,8 +30,6 @@ fn migration_zero() -> types.Migration {
     "",
   )
 }
-
-const query_applied_migrations = "SELECT createdAt, name FROM _migrations ORDER BY appliedAt ASC;"
 
 const query_insert_migration = "INSERT INTO _migrations(createdAt, name) VALUES ($1, $2);"
 
@@ -93,7 +90,7 @@ pub fn migrate_up() -> Result(Nil, types.MigrateError) {
 pub fn verify_applied_migration_hashes(
   conn: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
-  use migs_db <- result.try(get_applied_migrations(conn))
+  use migs_db <- result.try(migrations.get_applied_migrations(conn))
   use migs_file <- result.try(get_migrations())
 
   list.try_each(migs_db, fn(mig) {
@@ -155,7 +152,7 @@ pub fn apply_next_migration(
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
   use _ <- result.try(verify_applied_migration_hashes(connection))
-  use applied <- result.try(get_applied_migrations(connection))
+  use applied <- result.try(migrations.get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
   use migration <- result.try(migrations.find_first_non_applied_migration(
     migs,
@@ -187,7 +184,7 @@ pub fn execute_n_migrations(
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
   use _ <- result.try(verify_applied_migration_hashes(connection))
-  use applied <- result.try(get_applied_migrations(connection))
+  use applied <- result.try(migrations.get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
 
   migrations.find_n_migrations_to_apply(migs, applied, count)
@@ -209,7 +206,7 @@ pub fn execute_migrations_to_last(
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
   use _ <- result.try(verify_applied_migration_hashes(connection))
-  use applied <- result.try(get_applied_migrations(connection))
+  use applied <- result.try(migrations.get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
 
   migrations.find_all_non_applied_migration(migs, applied)
@@ -221,7 +218,7 @@ pub fn execute_migrations_to_last(
 fn apply_migration_zero_if_not_applied(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
-  case get_applied_migrations(connection) {
+  case migrations.get_applied_migrations(connection) {
     // 42P01: undefined_table --> _migrations table missing
     Error(types.PGOQueryError(pog.PostgresqlError(code, _, _)))
       if code == "42P01"
@@ -326,7 +323,7 @@ pub fn update_schema_file(url: String) -> Result(Nil, types.MigrateError) {
 fn get_last_applied_migration(
   conn: pog.Connection,
 ) -> Result(types.Migration, types.MigrateError) {
-  get_applied_migrations(conn)
+  migrations.get_applied_migrations(conn)
   |> result.map(list.reverse)
   |> result.then(fn(migs) {
     case migs |> list.first {
@@ -337,35 +334,6 @@ fn get_last_applied_migration(
           _ -> Ok(mig)
         }
       }
-    }
-  })
-}
-
-fn get_applied_migrations(
-  conn: pog.Connection,
-) -> Result(List(types.Migration), types.MigrateError) {
-  pog.query(query_applied_migrations)
-  |> pog.returning({
-    use timestamp <- decode.field(0, pog.timestamp_decoder())
-    use name <- decode.field(1, decode.string)
-    decode.success(#(timestamp, name))
-  })
-  |> pog.execute(conn)
-  |> result.map_error(types.PGOQueryError)
-  |> result.then(fn(returned) {
-    case returned {
-      pog.Returned(0, _) | pog.Returned(_, []) -> Error(types.NoResultError)
-      pog.Returned(_, applied) ->
-        applied
-        |> list.try_map(fn(data) {
-          utils.pog_to_tempo_timestamp(data.0)
-          |> result.map(fn(timestamp) {
-            types.Migration("", timestamp, data.1, [], [], "")
-          })
-          |> result.replace_error(
-            types.DateParseError(utils.pog_timestamp_to_string(data.0)),
-          )
-        })
     }
   })
 }

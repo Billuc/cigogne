@@ -1,10 +1,45 @@
+import cigogne/internal/utils
 import cigogne/types
+import gleam/dynamic/decode
 import gleam/list
 import gleam/option
 import gleam/order
 import gleam/result
 import gleam/string
+import pog
 import tempo/naive_datetime
+
+const query_applied_migrations = "SELECT createdAt, name, sha256 FROM _migrations ORDER BY appliedAt ASC;"
+
+pub fn get_applied_migrations(
+  conn: pog.Connection,
+) -> Result(List(types.Migration), types.MigrateError) {
+  pog.query(query_applied_migrations)
+  |> pog.returning({
+    use timestamp <- decode.field(0, pog.timestamp_decoder())
+    use name <- decode.field(1, decode.string)
+    use hash <- decode.field(2, decode.string)
+    decode.success(#(timestamp, name, hash))
+  })
+  |> pog.execute(conn)
+  |> result.map_error(types.PGOQueryError)
+  |> result.then(fn(returned) {
+    case returned {
+      pog.Returned(0, _) | pog.Returned(_, []) -> Error(types.NoResultError)
+      pog.Returned(_, applied) ->
+        applied
+        |> list.try_map(fn(data) {
+          utils.pog_to_tempo_timestamp(data.0)
+          |> result.map(fn(timestamp) {
+            types.Migration("", timestamp, data.1, [], [], data.2)
+          })
+          |> result.replace_error(
+            types.DateParseError(utils.pog_timestamp_to_string(data.0)),
+          )
+        })
+    }
+  })
+}
 
 pub fn find_migration(
   migrations: List(types.Migration),
