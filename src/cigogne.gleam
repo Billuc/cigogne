@@ -84,7 +84,6 @@ fn show_usage() -> Result(Nil, types.MigrateError) {
 pub fn migrate_up() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
-  use _ <- result.try(verify_applied_migration_hashes(conn))
   use _ <- result.try(apply_next_migration(conn))
   update_schema_file(url)
 }
@@ -113,7 +112,6 @@ pub fn verify_applied_migration_hashes(
 pub fn migrate_down() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
-  use _ <- result.try(verify_applied_migration_hashes(conn))
   use _ <- result.try(roll_back_previous_migration(conn))
   update_schema_file(url)
 }
@@ -125,7 +123,6 @@ pub fn migrate_down() -> Result(Nil, types.MigrateError) {
 pub fn migrate_n(count: Int) -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
-  use _ <- result.try(verify_applied_migration_hashes(conn))
   use _ <- result.try(execute_n_migrations(conn, count))
   update_schema_file(url)
 }
@@ -137,7 +134,6 @@ pub fn migrate_n(count: Int) -> Result(Nil, types.MigrateError) {
 pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
-  use _ <- result.try(verify_applied_migration_hashes(conn))
   use _ <- result.try(execute_migrations_to_last(conn))
   update_schema_file(url)
 }
@@ -158,6 +154,7 @@ pub fn apply_next_migration(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
+  use _ <- result.try(verify_applied_migration_hashes(connection))
   use applied <- result.try(get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
   use migration <- result.try(migrations.find_first_non_applied_migration(
@@ -174,6 +171,7 @@ pub fn roll_back_previous_migration(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
+  use _ <- result.try(verify_applied_migration_hashes(connection))
   use last <- result.try(get_last_applied_migration(connection))
   use migs <- result.try(fs.get_migrations())
   use migration <- result.try(migrations.find_migration(migs, last))
@@ -188,6 +186,7 @@ pub fn execute_n_migrations(
   count: Int,
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
+  use _ <- result.try(verify_applied_migration_hashes(connection))
   use applied <- result.try(get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
 
@@ -209,6 +208,7 @@ pub fn execute_migrations_to_last(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
+  use _ <- result.try(verify_applied_migration_hashes(connection))
   use applied <- result.try(get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
 
