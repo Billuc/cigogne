@@ -27,11 +27,12 @@ fn migration_zero() -> types.Migration {
 );",
     ],
     [],
-    "",
+    "32cecf50304e272bd79ba2a0ed13ec9d1fd7aecdebf1e54415f6bb8137e5ab5f",
+    // SHA256 of the query up
   )
 }
 
-const query_insert_migration = "INSERT INTO _migrations(createdAt, name) VALUES ($1, $2);"
+const query_insert_migration = "INSERT INTO _migrations(createdAt, name, sha256) VALUES ($1, $2, $3);"
 
 const query_drop_migration = "DELETE FROM _migrations WHERE name = $1 AND createdAt = $2;"
 
@@ -93,8 +94,11 @@ pub fn verify_applied_migration_hashes(
   use migs_db <- result.try(migrations.get_applied_migrations(conn))
   use migs_file <- result.try(get_migrations())
 
+  // Adding migration zero to check it too
+  let migs_file_and_zero = [migration_zero(), ..migs_file]
+
   list.try_each(migs_db, fn(mig) {
-    use file <- result.try(migrations.find_migration(migs_file, mig))
+    use file <- result.try(migrations.find_migration(migs_file_and_zero, mig))
     case mig.sha256 == file.sha256 {
       True -> Ok(Nil)
       False -> Error(types.FileHashChanged(mig.timestamp, mig.name))
@@ -247,7 +251,8 @@ pub fn apply_migration(
       |> pog.parameter(pog.timestamp(
         migration.timestamp |> utils.tempo_to_pog_timestamp,
       ))
-      |> pog.parameter(pog.text(migration.name)),
+      |> pog.parameter(pog.text(migration.name))
+      |> pog.parameter(pog.text(migration.sha256)),
     ])
   database.execute_batch(
     connection,
