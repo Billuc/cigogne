@@ -1,3 +1,5 @@
+import gleam/bit_array
+import gleam/crypto
 import gleam/dynamic/decode
 import gleam/int
 import gleam/list
@@ -101,4 +103,9 @@ pub fn pog_timestamp_to_string(value: pog.Timestamp) -> String {
 
 pub fn tempo_epoch() -> tempo.NaiveDateTime {
   naive_datetime.literal("1970-01-01 00:00:00")
+}
+
+pub fn make_sha256(content: String) -> String {
+  crypto.hash(crypto.Sha256, bit_array.from_string(content))
+  |> bit_array.base16_encode()
 }

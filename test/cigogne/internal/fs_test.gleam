@@ -69,7 +69,7 @@ pub fn parse_migration_file_test() {
 CREATE TABLE IF NOT EXISTS users(id UUID PRIMARY KEY, name TEXT NOT NULL);
 --- migration:down
 DROP TABLE users;
---- migration:end  
+--- migration:end
   "
   |> fs.parse_migration_file
   |> should.be_ok
@@ -87,7 +87,7 @@ pub fn text_after_end_tag_is_ignored_test() {
   "
 --- migration:up
 foo;
---- migration:down  
+--- migration:down
 bar;
 --- migration:end
 baz;
@@ -240,6 +240,7 @@ pub fn simplifile_read_directory_test() {
 
   simplifile.read_directory("priv/migrations")
   |> should.be_ok
+  |> list.sort(string.compare)
   |> should.equal(["20240101123246-Test1.sql", "20240922065413-Test2.sql"])
 
   Ok(Nil)
@@ -265,6 +266,11 @@ pub fn get_migrations_test() {
   first.queries_up
   |> should.equal(["create table todos(id uuid primary key, title text);"])
   first.queries_down |> should.equal(["drop table todos;"])
+  first.sha256
+  |> string.lowercase
+  |> should.equal(
+    "02afc7915deabc0ddcafe808e814e360247d15191981688728339f506eb1b965",
+  )
 
   second.timestamp
   |> should.equal(naive_datetime.literal("2024-09-22 06:54:13"))
@@ -276,6 +282,11 @@ pub fn get_migrations_test() {
   ])
   second.queries_down
   |> should.equal(["alter table todos drop column tag;", "drop table tags;"])
+  second.sha256
+  |> string.lowercase
+  |> should.equal(
+    "144dab1f2240264aa6a01340b4a43f5483459fa842531a9b3b759c23a95ebb26",
+  )
 }
 
 fn setup_and_teardown_migrations(test_cb: fn() -> Result(a, b)) {

@@ -4,7 +4,6 @@ import cigogne/internal/fs
 import cigogne/internal/migrations
 import cigogne/internal/utils
 import cigogne/types
-import gleam/dynamic/decode
 import gleam/int
 import gleam/io
 import gleam/list
@@ -22,17 +21,18 @@ fn migration_zero() -> types.Migration {
       "CREATE TABLE IF NOT EXISTS _migrations(
     id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     name VARCHAR(255) NOT NULL,
+    sha256 VARCHAR(64) NOT NULL,
     createdAt TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     appliedAt TIMESTAMP NOT NULL DEFAULT NOW()
 );",
     ],
     [],
+    "32cecf50304e272bd79ba2a0ed13ec9d1fd7aecdebf1e54415f6bb8137e5ab5f",
+    // SHA256 of the query up
   )
 }
 
-const query_applied_migrations = "SELECT createdAt, name FROM _migrations ORDER BY appliedAt ASC;"
-
-const query_insert_migration = "INSERT INTO _migrations(createdAt, name) VALUES ($1, $2);"
+const query_insert_migration = "INSERT INTO _migrations(createdAt, name, sha256) VALUES ($1, $2, $3);"
 
 const query_drop_migration = "DELETE FROM _migrations WHERE name = $1 AND createdAt = $2;"
 
@@ -75,9 +75,9 @@ fn show_usage() -> Result(Nil, types.MigrateError) {
   Ok(Nil)
 }
 
-/// Apply the next migration that wasn't applied yet.  
-/// This function will get the database url from the `DATABASE_URL` environment variable.  
-/// The migrations are then acquired from priv/migrations/*.sql files.  
+/// Apply the next migration that wasn't applied yet.
+/// This function will get the database url from the `DATABASE_URL` environment variable.
+/// The migrations are then acquired from priv/migrations/*.sql files.
 /// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_up() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
@@ -86,9 +86,29 @@ pub fn migrate_up() -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
-/// Roll back the last applied migration.  
-/// This function will get the database url from the `DATABASE_URL` environment variable.  
-/// The migrations are then acquired from priv/migrations/*.sql files.  
+/// Verify the hash integrity of applied migrations.
+/// If an already applied migration has been modified, it should most likely be run again by the user.
+pub fn verify_applied_migration_hashes(
+  conn: pog.Connection,
+) -> Result(Nil, types.MigrateError) {
+  use migs_db <- result.try(migrations.get_applied_migrations(conn))
+  use migs_file <- result.try(get_migrations())
+
+  // Adding migration zero to check it too
+  let migs_file_and_zero = [migration_zero(), ..migs_file]
+
+  list.try_each(migs_db, fn(mig) {
+    use file <- result.try(migrations.find_migration(migs_file_and_zero, mig))
+    case mig.sha256 == file.sha256 {
+      True -> Ok(Nil)
+      False -> Error(types.FileHashChanged(mig.timestamp, mig.name))
+    }
+  })
+}
+
+/// Roll back the last applied migration.
+/// This function will get the database url from the `DATABASE_URL` environment variable.
+/// The migrations are then acquired from priv/migrations/*.sql files.
 /// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_down() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
@@ -97,9 +117,9 @@ pub fn migrate_down() -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
-/// Apply or roll back migrations until we reach the migration corresponding to the provided number.  
-/// This function will get the database url from the `DATABASE_URL` environment variable.  
-/// The migrations are then acquired from priv/migrations/*.sql files.  
+/// Apply or roll back migrations until we reach the migration corresponding to the provided number.
+/// This function will get the database url from the `DATABASE_URL` environment variable.
+/// The migrations are then acquired from priv/migrations/*.sql files.
 /// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_n(count: Int) -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
@@ -108,9 +128,9 @@ pub fn migrate_n(count: Int) -> Result(Nil, types.MigrateError) {
   update_schema_file(url)
 }
 
-/// Apply migrations until we reach the last defined migration.  
-/// This function will get the database url from the `DATABASE_URL` environment variable.  
-/// The migrations are then acquired from priv/migrations/*.sql files.  
+/// Apply migrations until we reach the last defined migration.
+/// This function will get the database url from the `DATABASE_URL` environment variable.
+/// The migrations are then acquired from priv/migrations/*.sql files.
 /// If successful, it will also create a file and write details of the new schema in it.
 pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
   use url <- result.try(database.get_url())
@@ -128,14 +148,15 @@ pub fn new_migration(name: String) -> Result(Nil, types.MigrateError) {
   io.println("Migration file created : " <> path)
 }
 
-/// Apply the next migration that wasn't applied yet.  
-/// The migrations are acquired from priv/migrations/*.sql files.  
+/// Apply the next migration that wasn't applied yet.
+/// The migrations are acquired from priv/migrations/*.sql files.
 /// This function does not create a schema file.
 pub fn apply_next_migration(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
-  use applied <- result.try(get_applied_migrations(connection))
+  use _ <- result.try(verify_applied_migration_hashes(connection))
+  use applied <- result.try(migrations.get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
   use migration <- result.try(migrations.find_first_non_applied_migration(
     migs,
@@ -144,28 +165,30 @@ pub fn apply_next_migration(
   apply_migration(connection, migration)
 }
 
-/// Roll back the last applied migration.  
-/// The migrations are acquired from **/migrations/*.sql files.  
+/// Roll back the last applied migration.
+/// The migrations are acquired from **/migrations/*.sql files.
 /// This function does not create a schema file.
 pub fn roll_back_previous_migration(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
+  use _ <- result.try(verify_applied_migration_hashes(connection))
   use last <- result.try(get_last_applied_migration(connection))
   use migs <- result.try(fs.get_migrations())
   use migration <- result.try(migrations.find_migration(migs, last))
   roll_back_migration(connection, migration)
 }
 
-/// Apply or roll back migrations until we reach the migration corresponding to the provided number.  
-/// The migrations are acquired from **/migrations/*.sql files.  
+/// Apply or roll back migrations until we reach the migration corresponding to the provided number.
+/// The migrations are acquired from **/migrations/*.sql files.
 /// This function does not create a schema file.
 pub fn execute_n_migrations(
   connection: pog.Connection,
   count: Int,
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
-  use applied <- result.try(get_applied_migrations(connection))
+  use _ <- result.try(verify_applied_migration_hashes(connection))
+  use applied <- result.try(migrations.get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
 
   migrations.find_n_migrations_to_apply(migs, applied, count)
@@ -179,14 +202,15 @@ pub fn execute_n_migrations(
   )
 }
 
-/// Apply migrations until we reach the last defined migration.  
-/// The migrations are acquired from **/migrations/*.sql files.  
+/// Apply migrations until we reach the last defined migration.
+/// The migrations are acquired from **/migrations/*.sql files.
 /// This function does not create a schema file.
 pub fn execute_migrations_to_last(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
   use _ <- result.try(apply_migration_zero_if_not_applied(connection))
-  use applied <- result.try(get_applied_migrations(connection))
+  use _ <- result.try(verify_applied_migration_hashes(connection))
+  use applied <- result.try(migrations.get_applied_migrations(connection))
   use migs <- result.try(fs.get_migrations())
 
   migrations.find_all_non_applied_migration(migs, applied)
@@ -198,7 +222,7 @@ pub fn execute_migrations_to_last(
 fn apply_migration_zero_if_not_applied(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
-  case get_applied_migrations(connection) {
+  case migrations.get_applied_migrations(connection) {
     // 42P01: undefined_table --> _migrations table missing
     Error(types.PGOQueryError(pog.PostgresqlError(code, _, _)))
       if code == "42P01"
@@ -207,7 +231,7 @@ fn apply_migration_zero_if_not_applied(
   }
 }
 
-/// Apply a migration to the database.  
+/// Apply a migration to the database.
 /// This function does not create a schema file.
 pub fn apply_migration(
   connection: pog.Connection,
@@ -227,7 +251,8 @@ pub fn apply_migration(
       |> pog.parameter(pog.timestamp(
         migration.timestamp |> utils.tempo_to_pog_timestamp,
       ))
-      |> pog.parameter(pog.text(migration.name)),
+      |> pog.parameter(pog.text(migration.name))
+      |> pog.parameter(pog.text(migration.sha256)),
     ])
   database.execute_batch(
     connection,
@@ -244,7 +269,7 @@ pub fn apply_migration(
   })
 }
 
-/// Roll back a migration from the database.  
+/// Roll back a migration from the database.
 /// This function does not create a schema file.
 pub fn roll_back_migration(
   connection: pog.Connection,
@@ -281,7 +306,7 @@ pub fn roll_back_migration(
   })
 }
 
-/// Get all defined migrations in your project.  
+/// Get all defined migrations in your project.
 /// Migration files are searched in `/migrations` folders.
 pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
   fs.get_migrations()
@@ -303,7 +328,7 @@ pub fn update_schema_file(url: String) -> Result(Nil, types.MigrateError) {
 fn get_last_applied_migration(
   conn: pog.Connection,
 ) -> Result(types.Migration, types.MigrateError) {
-  get_applied_migrations(conn)
+  migrations.get_applied_migrations(conn)
   |> result.map(list.reverse)
   |> result.then(fn(migs) {
     case migs |> list.first {
@@ -318,39 +343,11 @@ fn get_last_applied_migration(
   })
 }
 
-fn get_applied_migrations(
-  conn: pog.Connection,
-) -> Result(List(types.Migration), types.MigrateError) {
-  pog.query(query_applied_migrations)
-  |> pog.returning({
-    use timestamp <- decode.field(0, pog.timestamp_decoder())
-    use name <- decode.field(1, decode.string)
-    decode.success(#(timestamp, name))
-  })
-  |> pog.execute(conn)
-  |> result.map_error(types.PGOQueryError)
-  |> result.then(fn(returned) {
-    case returned {
-      pog.Returned(0, _) | pog.Returned(_, []) -> Error(types.NoResultError)
-      pog.Returned(_, applied) ->
-        applied
-        |> list.try_map(fn(data) {
-          utils.pog_to_tempo_timestamp(data.0)
-          |> result.map(fn(timestamp) {
-            types.Migration("", timestamp, data.1, [], [])
-          })
-          |> result.replace_error(
-            types.DateParseError(utils.pog_timestamp_to_string(data.0)),
-          )
-        })
-    }
-  })
-}
-
 fn show() {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
   use _ <- result.try(apply_migration(conn, migration_zero()))
+  use _ <- result.try(verify_applied_migration_hashes(conn))
   use last <- result.try(get_last_applied_migration(conn))
 
   io.println(

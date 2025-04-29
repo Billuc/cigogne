@@ -24,15 +24,16 @@ Cigogne can also be installed as a regular dependency and used in your project. 
 ## Usage
 
 To use `cigogne`, you first have to create your migration scripts in the `priv/migrations` folder.
-Cigogne will look for `.sql` files in this folder to get your migrations. Cigogne expects 
-the sql files to have the following format `<MigrationTimestamps>-<MigrationName>.sql`. This way we 
+Cigogne will look for `.sql` files in this folder to get your migrations.
+
+> Use the `gleam run -m cigogne new NAME` command to create a new migration
+
+Cigogne expects 
+the sql files to have the following format `<MigrationTimestamp>-<MigrationName>.sql`. This way we 
 can get an order in which migrations should be applied and a descriptive name right away. It also
 allows for easy sorting of your migration scripts and forces you to give it a meaningful name.
 
-> This may not be great for everyone, so it may change in the future, maybe to some kind of front matter or something else.  
-> Please let me know what you think 😉
-
-You can then write your migration scripts. It should look like this 
+You can then write your migration scripts. It should look like this: 
 
 ```sql
 --- migration:up
@@ -49,8 +50,6 @@ DROP TABLE users;
 ```
 
 The `--- migration:` comments are used to separate between the queries used for the "up migration" and the "down migration".
-
-> Again this may change if we find a better way of doing it !
 
 You are now ready to execute your migration ! The first way of executing your migration is via the command line :
 
@@ -93,6 +92,10 @@ pub fn init() -> Nil {
 > whenever they are successful.
 
 Further documentation can be found at <https://hexdocs.pm/cigogne>.
+
+## Hashes
+
+A hash of the migration file is saved to the database when a migration is applied. This way, we can ensure that migrations are not modified after being applied. If a migration has been modified, you will get an error as it probably means that you should reset your database to update a migration.
 
 ## Development ideas
 
