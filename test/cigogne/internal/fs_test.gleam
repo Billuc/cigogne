@@ -46,14 +46,21 @@ pub fn parse_int_id_should_fail_test() {
   "5-NotATimestamp.sql"
   |> fs.parse_file_name
   |> should.be_error
-  |> should.equal(types.FileNameError("5-NotATimestamp.sql"))
+  |> should.equal(types.DateParseError("5"))
 }
 
 pub fn parse_not_a_timestamp_id_should_fail_test() {
   "Today-NotATimestamp.sql"
   |> fs.parse_file_name
   |> should.be_error
-  |> should.equal(types.FileNameError("Today-NotATimestamp.sql"))
+  |> should.equal(types.DateParseError("Today"))
+}
+
+pub fn parse_name_too_long_should_fail_test() {
+  { "20241217205757-" <> string.repeat("a", 256) <> ".sql" }
+  |> fs.parse_file_name
+  |> should.be_error
+  |> should.equal(types.NameTooLongError(string.repeat("a", 256)))
 }
 
 pub fn parse_migration_file_test() {
@@ -374,4 +381,16 @@ pub fn create_new_migration_create_priv_migrations_folder() {
   |> should.equal(True)
 
   simplifile.delete("priv")
+}
+
+pub fn create_new_migration_returns_error_if_name_too_long_test() {
+  use <- setup_and_teardown_migrations()
+
+  let timestamp = naive_datetime.literal("2024-11-17 18:36:41")
+
+  fs.create_new_migration_file(timestamp, string.repeat("a", 256))
+  |> should.be_error
+  |> should.equal(types.NameTooLongError(string.repeat("a", 256)))
+
+  Ok(Nil)
 }
