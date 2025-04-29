@@ -23,6 +23,8 @@ const migration_down_guard = "--- migration:down"
 
 const migration_end_guard = "--- migration:end"
 
+const max_name_length = 255
+
 pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
   globlin.new_pattern(migration_file_pattern)
   |> result.replace_error(types.PatternError(
@@ -70,23 +72,21 @@ pub fn parse_file_name(
     Error(types.FileNameError(path)),
   )
 
-  let ts_and_name =
+  use ts_and_name <- result.try(
     string.split(path, "/")
     |> list.last
     |> result.map(string.drop_end(_, 4))
     |> result.then(string.split_once(_, "-"))
+    |> result.replace_error(types.FileNameError(path)),
+  )
 
-  let ts =
-    ts_and_name
-    |> result.then(fn(v) {
-      naive_datetime.parse(v.0, "YYYYMMDDHHmmss")
-      |> result.replace_error(Nil)
-    })
+  use ts <- result.try(
+    naive_datetime.parse(ts_and_name.0, "YYYYMMDDHHmmss")
+    |> result.replace_error(types.DateParseError(ts_and_name.0)),
+  )
+  use name <- result.try(check_name(ts_and_name.1))
 
-  case ts, ts_and_name {
-    Ok(n), Ok(#(_, name)) -> Ok(#(n, name))
-    _, _ -> Error(types.FileNameError(path))
-  }
+  #(ts, name) |> Ok
 }
 
 pub fn parse_migration_file(
@@ -248,6 +248,7 @@ pub fn create_new_migration_file(
   timestamp: tempo.NaiveDateTime,
   name: String,
 ) -> Result(String, types.MigrateError) {
+  use name <- result.try(check_name(name))
   let file_path =
     migrations_folder
     <> "/"
@@ -271,4 +272,12 @@ pub fn create_new_migration_file(
     |> result.replace_error(types.FileError(file_path))
   })
   |> result.map(fn(_) { file_path })
+}
+
+fn check_name(name: String) -> Result(String, types.MigrateError) {
+  use <- bool.guard(
+    string.length(name) > max_name_length,
+    Error(types.NameTooLongError(name)),
+  )
+  Ok(name)
 }
