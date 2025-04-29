@@ -97,7 +97,8 @@ Further documentation can be found at <https://hexdocs.pm/cigogne>.
 
 A hash of the migration file is saved to the database when a migration is applied. This way, we can ensure that migrations are not modified after being applied. If a migration has been modified, you will get an error as it probably means that you should reset your database to update a migration.
 
-> This feature was introduced in version 3 of cigogne. 
+> This feature was introduced in version 3 of cigogne.
+> Note that it requires Gleam >=1.9.0. 
 > If you use earlier versions of the library, you can use the to_v3 script to have them filled automatically.  
 > 
 > Command: `gleam run -m cigogne/to_v3`
