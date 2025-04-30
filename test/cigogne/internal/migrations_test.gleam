@@ -1,4 +1,5 @@
 import cigogne/internal/migrations
+import cigogne/internal/utils
 import cigogne/types
 import gleam/list
 import gleeunit/should
@@ -633,4 +634,34 @@ pub fn find_n_migrations_to_apply_negative_test() {
       "",
     ),
   ])
+}
+
+pub fn is_zero_migration_test() {
+  types.Migration("", utils.tempo_epoch(), "", [], [], "")
+  |> migrations.is_zero_migration()
+  |> should.be_true()
+}
+
+pub fn is_not_zero_migration_test() {
+  types.Migration(
+    "priv/migrations/01011970000000-test.sql",
+    utils.tempo_epoch(),
+    "test",
+    ["CREATE TABLE test();"],
+    ["DROP TABLE test;"],
+    "fde7050fe128b1ccf71703ab7463748a481fc1d347ab17ea3eaee56f4a2cd96f",
+  )
+  |> migrations.is_zero_migration()
+  |> should.be_false
+
+  types.Migration(
+    "",
+    naive_datetime.now_utc(),
+    "test",
+    ["CREATE TABLE test();"],
+    ["DROP TABLE test;"],
+    "fde7050fe128b1ccf71703ab7463748a481fc1d347ab17ea3eaee56f4a2cd96f",
+  )
+  |> migrations.is_zero_migration()
+  |> should.be_false
 }

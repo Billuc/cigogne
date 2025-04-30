@@ -1,3 +1,6 @@
+import cigogne
+import cigogne/internal/utils
+import cigogne/types
 import gleam/list
 import gleeunit
 import gleeunit/should
@@ -34,4 +37,22 @@ pub fn test_tempo_duration() {
 
   list.sort(times, naive_datetime.compare)
   |> should.equal([time2, time3, time1])
+}
+
+pub fn create_zero_migration_test() {
+  let migration = cigogne.create_zero_migration("test_zero", ["abc"], ["def"])
+
+  migration
+  |> should.equal(types.Migration(
+    "",
+    utils.tempo_epoch(),
+    "test_zero",
+    ["abc"],
+    ["def"],
+    "BEF57EC7F53A6D40BEB640A780A639C83BC29AC8A9816F1FC6C5C6DCD93C4721",
+  ))
+
+  migration
+  |> cigogne.is_zero_migration()
+  |> should.be_true
 }

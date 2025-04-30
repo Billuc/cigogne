@@ -6,6 +6,7 @@
 
 - Added functions and changed the API to better interface libraries with cigogne
 - Improved performance by reducing the number of calls to the database and the FS
+- Creating migration folder on engine creation
 
 ## 3.0.0 - 29/04/2025
 

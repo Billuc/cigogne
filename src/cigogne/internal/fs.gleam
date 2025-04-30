@@ -26,15 +26,15 @@ const migration_end_guard = "--- migration:end"
 const max_name_length = 255
 
 pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
+  use _ <- result.try(create_migration_folder())
+
   globlin.new_pattern(migration_file_pattern)
   |> result.replace_error(types.PatternError(
     "Something is wrong with the search pattern !",
   ))
   |> result.then(fn(pattern) {
     globlin_fs.glob_from(pattern, migrations_folder, globlin_fs.RegularFiles)
-    |> result.replace_error(types.FileError(
-      "There was a problem accessing some files/folders !",
-    ))
+    |> result.replace_error(types.FileError(migration_file_pattern))
   })
   |> result.then(fn(files) {
     let res =
@@ -261,9 +261,11 @@ pub fn create_new_migration_file(
   let file_path =
     migrations_folder <> "/" <> to_migration_filename(timestamp, name)
 
-  simplifile.create_directory_all(migrations_folder)
-  |> result.then(fn(_) { simplifile.create_file(file_path) })
-  |> result.replace_error(types.FileError(file_path))
+  create_migration_folder()
+  |> result.then(fn(_) {
+    simplifile.create_file(file_path)
+    |> result.replace_error(types.FileError(file_path))
+  })
   |> result.then(fn(_) {
     file_path
     |> simplifile.write(
@@ -276,6 +278,11 @@ pub fn create_new_migration_file(
     |> result.replace_error(types.FileError(file_path))
   })
   |> result.map(fn(_) { file_path })
+}
+
+fn create_migration_folder() -> Result(Nil, types.MigrateError) {
+  simplifile.create_directory_all(migrations_folder)
+  |> result.replace_error(types.CreateFolderError(migrations_folder))
 }
 
 pub fn to_migration_filename(
