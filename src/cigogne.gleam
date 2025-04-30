@@ -68,19 +68,25 @@ fn show_usage() -> Result(Nil, types.MigrateError) {
     " - apply N:  Apply or roll back N migrations (N can be positive or negative)",
   )
   io.println(
-    " - new NAME: Create a new migration file in /priv/migrations with the specified name",
+    " - new NAME: Create a new migration file in priv/migrations with the specified name",
   )
 
   Ok(Nil)
 }
 
+/// The configuration used to create a MigrationEngine
 pub type DatabaseConfig {
+  /// The default configuration. It uses the DATABASE_URL envvar to connect
   EnvVarConfig
+  /// A configuration using the URL to the database
   UrlConfig(url: String)
+  /// A configuration using a pog.Config to connect. It disables schema generation.
   PogConfig(config: pog.Config)
+  /// A configuration using a pog.Connection directly. It disables schema generation.
   ConnectionConfig(connection: pog.Connection)
 }
 
+/// The MigrationEngine contains all the data required to apply and roll back migrations.
 pub type MigrationEngine {
   MigrationEngine(
     db_url: option.Option(String),
@@ -91,6 +97,9 @@ pub type MigrationEngine {
   )
 }
 
+/// Creates a MigrationEngine from a configuration.
+/// This function will try to connect to the database.
+/// Then it will fetch the applied migrations and the existing migration files.
 pub fn create_migration_engine(
   config: DatabaseConfig,
 ) -> Result(MigrationEngine, types.MigrateError) {
@@ -218,7 +227,7 @@ pub fn apply_next_migration(
 }
 
 /// Roll back the last applied migration.
-/// The migrations are acquired from **/migrations/*.sql files.
+/// The migrations are acquired from priv/migrations/*.sql files.
 /// This function does not create a schema file.
 pub fn roll_back_previous_migration(
   engine: MigrationEngine,
@@ -230,7 +239,7 @@ pub fn roll_back_previous_migration(
 }
 
 /// Apply or roll back migrations until we reach the migration corresponding to the provided number.
-/// The migrations are acquired from **/migrations/*.sql files.
+/// The migrations are acquired from priv/migrations/*.sql files.
 /// This function does not create a schema file.
 pub fn execute_n_migrations(
   engine: MigrationEngine,
@@ -251,7 +260,7 @@ pub fn execute_n_migrations(
 }
 
 /// Apply migrations until we reach the last defined migration.
-/// The migrations are acquired from **/migrations/*.sql files.
+/// The migrations are acquired from priv/migrations/*.sql files.
 /// This function does not create a schema file.
 pub fn execute_migrations_to_last(
   engine: MigrationEngine,
@@ -348,7 +357,7 @@ pub fn roll_back_migration(
 }
 
 /// Get all defined migrations in your project.
-/// Migration files are searched in the `/priv/migrations` folder.
+/// Migration files are searched in the `priv/migrations` folder.
 pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
   fs.get_migrations()
 }
@@ -366,6 +375,8 @@ pub fn update_schema_file(url: String) -> Result(Nil, types.MigrateError) {
   |> result.map(fn(_) { io.println("Schema file updated") })
 }
 
+/// Create or update a schema file if the engine configuration permits it.
+/// See update_schema_file.
 pub fn update_schema(engine: MigrationEngine) {
   case engine.db_url {
     option.None -> {
