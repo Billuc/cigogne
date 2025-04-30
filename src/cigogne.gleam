@@ -9,26 +9,23 @@ import gleam/io
 import gleam/list
 import gleam/order
 import gleam/result
+import gleam/string
 import pog
 import tempo/naive_datetime
 
-fn migration_zero() -> types.Migration {
-  types.Migration(
-    "",
-    utils.tempo_epoch(),
+fn cigogne_zero_migration() -> types.Migration {
+  create_zero_migration(
     "CreateMigrationsTable",
     [
       "CREATE TABLE IF NOT EXISTS _migrations(
-    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    name VARCHAR(255) NOT NULL,
-    sha256 VARCHAR(64) NOT NULL,
-    createdAt TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    appliedAt TIMESTAMP NOT NULL DEFAULT NOW()
-);",
+          id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+          name VARCHAR(255) NOT NULL,
+          sha256 VARCHAR(64) NOT NULL,
+          createdAt TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+          appliedAt TIMESTAMP NOT NULL DEFAULT NOW()
+      );",
     ],
     [],
-    "32cecf50304e272bd79ba2a0ed13ec9d1fd7aecdebf1e54415f6bb8137e5ab5f",
-    // SHA256 of the query up
   )
 }
 
@@ -95,7 +92,7 @@ pub fn verify_applied_migration_hashes(
   use migs_file <- result.try(get_migrations())
 
   // Adding migration zero to check it too
-  let migs_file_and_zero = [migration_zero(), ..migs_file]
+  let migs_file_and_zero = [cigogne_zero_migration(), ..migs_file]
 
   list.try_each(migs_db, fn(mig) {
     use file <- result.try(migrations.find_migration(migs_file_and_zero, mig))
@@ -226,7 +223,7 @@ fn apply_migration_zero_if_not_applied(
     // 42P01: undefined_table --> _migrations table missing
     Error(types.PGOQueryError(pog.PostgresqlError(code, _, _)))
       if code == "42P01"
-    -> apply_migration(connection, migration_zero())
+    -> apply_migration(connection, cigogne_zero_migration())
     _ -> Ok(Nil)
   }
 }
@@ -257,7 +254,8 @@ pub fn apply_migration(
   database.execute_batch(
     connection,
     queries,
-    migrations.compare_migrations(migration, migration_zero()) == order.Eq,
+    migrations.compare_migrations(migration, cigogne_zero_migration())
+      == order.Eq,
   )
   |> result.map(fn(_) {
     io.println(
@@ -294,7 +292,8 @@ pub fn roll_back_migration(
   database.execute_batch(
     connection,
     queries,
-    migrations.compare_migrations(migration, migration_zero()) == order.Eq,
+    migrations.compare_migrations(migration, cigogne_zero_migration())
+      == order.Eq,
   )
   |> result.map(fn(_) {
     io.println(
@@ -346,7 +345,7 @@ fn get_last_applied_migration(
 fn show() {
   use url <- result.try(database.get_url())
   use conn <- result.try(database.connect(url))
-  use _ <- result.try(apply_migration(conn, migration_zero()))
+  use _ <- result.try(apply_migration(conn, cigogne_zero_migration()))
   use _ <- result.try(verify_applied_migration_hashes(conn))
   use last <- result.try(get_last_applied_migration(conn))
 
@@ -367,4 +366,22 @@ fn show() {
 /// Print a MigrateError to the standard error stream.
 pub fn print_error(error: types.MigrateError) -> Nil {
   types.print_migrate_error(error)
+}
+
+/// Create a "zero" migration that should be applied before the user's migrations
+pub fn create_zero_migration(
+  name: String,
+  queries_up: List(String),
+  queries_down: List(String),
+) -> types.Migration {
+  types.Migration(
+    "",
+    utils.tempo_epoch(),
+    name,
+    queries_up,
+    queries_down,
+    utils.make_sha256(
+      queries_up |> string.join(";") <> queries_down |> string.join(";"),
+    ),
+  )
 }
