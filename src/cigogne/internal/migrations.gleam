@@ -1,5 +1,6 @@
 import cigogne/internal/utils
 import cigogne/types
+import gleam/bool
 import gleam/dynamic/decode
 import gleam/list
 import gleam/option
@@ -58,7 +59,7 @@ pub fn find_migration(
 pub fn compare_migrations(
   migration_a: types.Migration,
   migration_b: types.Migration,
-) {
+) -> order.Order {
   naive_datetime.compare(migration_a.timestamp, migration_b.timestamp)
   |> order.break_tie(string.compare(migration_a.name, migration_b.name))
 }
@@ -200,4 +201,10 @@ fn find_n_to_rollback(
           find_n_to_rollback(rest, migrations, [mig, ..found], n - 1)
       }
   }
+}
+
+/// Checks if a migration is a zero migration (has been created with create_zero_migration)
+pub fn is_zero_migration(migration: types.Migration) -> Bool {
+  { migration.path == "" }
+  |> bool.and(naive_datetime.is_equal(migration.timestamp, utils.tempo_epoch()))
 }

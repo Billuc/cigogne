@@ -10,6 +10,7 @@ pub type MigrateError {
   EnvVarError(name: String)
   UrlError(url: String)
   FileError(path: String)
+  CreateFolderError(path: String)
   PatternError(error: String)
   FileNameError(path: String)
   CompoundError(errors: List(MigrateError))
@@ -77,7 +78,8 @@ pub fn print_migrate_error(error: MigrateError) -> Nil {
     SchemaQueryError(err) ->
       io.println_error("Error while querying schema : " <> err)
     NoMigrationToApplyError -> io.println_error("No migration to apply !")
-    NoMigrationToRollbackError -> io.println_error("No migration to rollback !")
+    NoMigrationToRollbackError ->
+      io.println_error("No user migration has been applied !")
     MigrationNotFoundError(ts, name) ->
       io.println_error(
         "Migration not found [timestamp: "
@@ -100,5 +102,7 @@ pub fn print_migrate_error(error: MigrateError) -> Nil {
       io.println_error(
         "Migration name should be no more than 255 characters: " <> name,
       )
+    CreateFolderError(path) ->
+      io.println_error("Couldn't create folder at path [" <> path <> "]")
   }
 }

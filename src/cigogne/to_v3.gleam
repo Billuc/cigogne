@@ -68,6 +68,7 @@ fn set_hash(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
   use <- bool.guard(applied_mig.sha256 != "", Ok(Nil))
+  use <- bool.guard(migrations.is_zero_migration(applied_mig), Ok(Nil))
 
   migrations.find_migration(files, applied_mig)
   |> result.then(fn(file) {
