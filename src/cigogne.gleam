@@ -13,7 +13,11 @@ import gleam/order
 import gleam/result
 import gleam/string
 import pog
+import tempo/datetime
+import tempo/instant
 import tempo/naive_datetime
+
+pub const timestamp_format = fs.timestamp_format
 
 fn cigogne_zero_migration() -> types.Migration {
   create_zero_migration(
@@ -205,7 +209,9 @@ pub fn migrate_to_last() -> Result(Nil, types.MigrateError) {
 /// Create a new migration file in the `priv/migrations` folder with the provided name.
 pub fn new_migration(name: String) -> Result(Nil, types.MigrateError) {
   use path <- result.map(fs.create_new_migration_file(
-    naive_datetime.now_utc(),
+    instant.now()
+      |> instant.as_utc_datetime()
+      |> datetime.drop_offset(),
     name,
   ))
   io.println("Migration file created : " <> path)
@@ -285,12 +291,7 @@ pub fn apply_migration(
   engine: MigrationEngine,
   migration: types.Migration,
 ) -> Result(Nil, types.MigrateError) {
-  io.println(
-    "\nApplying migration "
-    <> migration.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
-    <> "-"
-    <> migration.name,
-  )
+  io.println("\nApplying migration " <> fs.format_migration_name(migration))
 
   let queries =
     list.map(migration.queries_up, pog.query)
@@ -309,12 +310,7 @@ pub fn apply_migration(
       == order.Eq,
   )
   |> result.map(fn(_) {
-    io.println(
-      "Migration applied : "
-      <> migration.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
-      <> "-"
-      <> migration.name,
-    )
+    io.println("Migration applied : " <> fs.format_migration_name(migration))
   })
 }
 
@@ -324,12 +320,7 @@ pub fn roll_back_migration(
   engine: MigrationEngine,
   migration: types.Migration,
 ) -> Result(Nil, types.MigrateError) {
-  io.println(
-    "\nRolling back migration "
-    <> migration.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
-    <> "-"
-    <> migration.name,
-  )
+  io.println("\nRolling back migration " <> fs.format_migration_name(migration))
 
   let queries =
     list.map(migration.queries_down, pog.query)
@@ -348,10 +339,7 @@ pub fn roll_back_migration(
   )
   |> result.map(fn(_) {
     io.println(
-      "Migration rolled back : "
-      <> migration.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
-      <> "-"
-      <> migration.name,
+      "Migration rolled back : " <> fs.format_migration_name(migration),
     )
   })
 }
@@ -411,7 +399,7 @@ fn show() {
 
   io.println(
     "Last applied migration: "
-    <> last.timestamp |> naive_datetime.format("YYYYMMDDhhmmss")
+    <> last.timestamp |> naive_datetime.format(timestamp_format)
     <> "-"
     <> last.name,
   )
