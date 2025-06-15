@@ -253,10 +253,11 @@ pub fn get_migrations_test() {
     fs.get_migrations()
     |> should.be_ok()
     |> list.sort(migrations.compare_migrations)
-  use #(first, rest) <- result.try(
-    list.pop(migs, fn(_) { True })
-    |> result.replace_error("No migration found !"),
-  )
+
+  use #(first, rest) <- result.try(case migs {
+    [first, ..rest] -> Ok(#(first, rest))
+    _ -> Error("No migration found !")
+  })
   use second <- result.map(
     list.first(rest) |> result.replace_error("Only one migration found !"),
   )

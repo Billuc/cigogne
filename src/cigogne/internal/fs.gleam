@@ -11,6 +11,8 @@ import simplifile
 import tempo
 import tempo/naive_datetime
 
+const timestamp_format = tempo.CustomNaive("YYYYMMDDHHmmss")
+
 const migrations_folder = "priv/migrations"
 
 const migration_file_pattern = migrations_folder <> "/*.sql"
@@ -90,12 +92,18 @@ pub fn parse_file_name(
   )
 
   use ts <- result.try(
-    naive_datetime.parse(ts_and_name.0, "YYYYMMDDHHmmss")
+    naive_datetime.parse(ts_and_name.0, timestamp_format)
     |> result.replace_error(types.DateParseError(ts_and_name.0)),
   )
   use name <- result.try(check_name(ts_and_name.1))
 
   #(ts, name) |> Ok
+}
+
+pub fn format_migration_name(migration: types.Migration) -> String {
+  migration.timestamp |> naive_datetime.format(timestamp_format)
+  <> "-"
+  <> migration.name
 }
 
 pub fn parse_migration_file(
@@ -289,7 +297,7 @@ pub fn to_migration_filename(
   timestamp: tempo.NaiveDateTime,
   name: String,
 ) -> String {
-  timestamp |> naive_datetime.format("YYYYMMDDHHmmss") <> "-" <> name <> ".sql"
+  timestamp |> naive_datetime.format(timestamp_format) <> "-" <> name <> ".sql"
 }
 
 fn check_name(name: String) -> Result(String, types.MigrateError) {

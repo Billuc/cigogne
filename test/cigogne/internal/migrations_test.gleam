@@ -3,6 +3,8 @@ import cigogne/internal/utils
 import cigogne/types
 import gleam/list
 import gleeunit/should
+import tempo/datetime
+import tempo/instant
 import tempo/naive_datetime
 
 pub fn find_migration_test() {
@@ -656,7 +658,9 @@ pub fn is_not_zero_migration_test() {
 
   types.Migration(
     "",
-    naive_datetime.now_utc(),
+    instant.now()
+      |> instant.as_utc_datetime()
+      |> datetime.drop_offset(),
     "test",
     ["CREATE TABLE test();"],
     ["DROP TABLE test;"],

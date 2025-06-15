@@ -18,12 +18,12 @@ pub fn hello_world_test() {
 
 pub fn test_tempo_format() {
   naive_datetime.literal("2024-12-14 08:57:12")
-  |> naive_datetime.format("YYYYMMDDhhmmss")
+  |> naive_datetime.format(cigogne.timestamp_format)
   |> should.equal("20241214085712")
 }
 
 pub fn test_tempo_parse() {
-  naive_datetime.parse("20241214085712", "YYYYMMDDhhmmss")
+  naive_datetime.parse("20241214085712", cigogne.timestamp_format)
   |> should.be_ok
   |> naive_datetime.to_tuple
   |> should.equal(#(#(2024, 12, 14), #(08, 57, 12)))
