@@ -1,9 +1,59 @@
 import cigogne/internal/utils
 import gleam/io
 import gleam/list
+import gleam/option
 import pog
 import tempo
 import tempo/naive_datetime
+
+/// The configuration used to create a MigrationEngine
+pub type ConnectionConfig {
+  /// The default configuration. It uses the DATABASE_URL envvar to connect
+  EnvVarConfig
+  /// A configuration using the URL to the database
+  UrlConfig(url: String)
+  /// A configuration using a pog.Config to connect. It disables schema generation.
+  PogConfig(config: pog.Config)
+  /// A configuration using a pog.Connection directly. It disables schema generation.
+  ConnectionConfig(connection: pog.Connection)
+}
+
+pub type Config {
+  Config(
+    connection: ConnectionConfig,
+    database_schema_to_use: String,
+    migration_table_name: String,
+    schema_config: SchemaConfig,
+    migration_folder: String,
+    migration_file_pattern: String,
+  )
+}
+
+pub type SchemaConfig {
+  SchemaConfig(generate: Bool, filename: String)
+}
+
+pub type DatabaseData {
+  DatabaseData(
+    connection: pog.Connection,
+    migrations_table_name: String,
+    schema: String,
+  )
+}
+
+pub type SchemaData {
+  SchemaData(db_url: option.Option(String), filename: String)
+}
+
+/// The MigrationEngine contains all the data required to apply and roll back migrations.
+pub type MigrationEngine {
+  MigrationEngine(
+    db_data: DatabaseData,
+    schema_data: SchemaData,
+    applied: List(Migration),
+    files: List(Migration),
+  )
+}
 
 /// The errors returned by cigogne
 pub type MigrateError {

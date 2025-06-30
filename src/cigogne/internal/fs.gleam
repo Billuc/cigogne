@@ -13,12 +13,6 @@ import tempo/naive_datetime
 
 const timestamp_format = tempo.CustomNaive("YYYYMMDDHHmmss")
 
-const migrations_folder = "priv/migrations"
-
-const migration_file_pattern = migrations_folder <> "/*.sql"
-
-const schema_file_path = "./sql.schema"
-
 const migration_up_guard = "--- migration:up"
 
 const migration_down_guard = "--- migration:down"
@@ -27,9 +21,13 @@ const migration_end_guard = "--- migration:end"
 
 const max_name_length = 255
 
-pub fn get_migrations() -> Result(List(types.Migration), types.MigrateError) {
-  use _ <- result.try(create_migration_folder())
+pub fn get_migrations(
+  migrations_folder: String,
+  file_pattern: String,
+) -> Result(List(types.Migration), types.MigrateError) {
+  use _ <- result.try(create_migration_folder(migrations_folder))
 
+  let migration_file_pattern = migrations_folder <> file_pattern
   globlin.new_pattern(migration_file_pattern)
   |> result.replace_error(types.PatternError(
     "Something is wrong with the search pattern !",
@@ -251,17 +249,23 @@ fn add_if_not_empty(
   }
 }
 
-pub fn read_schema_file() -> Result(String, types.MigrateError) {
+pub fn read_schema_file(
+  schema_file_path: String,
+) -> Result(String, types.MigrateError) {
   simplifile.read(schema_file_path)
   |> result.replace_error(types.FileError(schema_file_path))
 }
 
-pub fn write_schema_file(content: String) -> Result(Nil, types.MigrateError) {
+pub fn write_schema_file(
+  schema_file_path: String,
+  content: String,
+) -> Result(Nil, types.MigrateError) {
   simplifile.write(schema_file_path, content)
   |> result.replace_error(types.FileError(schema_file_path))
 }
 
 pub fn create_new_migration_file(
+  migrations_folder: String,
   timestamp: tempo.NaiveDateTime,
   name: String,
 ) -> Result(String, types.MigrateError) {
@@ -269,7 +273,7 @@ pub fn create_new_migration_file(
   let file_path =
     migrations_folder <> "/" <> to_migration_filename(timestamp, name)
 
-  create_migration_folder()
+  create_migration_folder(migrations_folder)
   |> result.then(fn(_) {
     simplifile.create_file(file_path)
     |> result.replace_error(types.FileError(file_path))
@@ -288,7 +292,9 @@ pub fn create_new_migration_file(
   |> result.map(fn(_) { file_path })
 }
 
-fn create_migration_folder() -> Result(Nil, types.MigrateError) {
+fn create_migration_folder(
+  migrations_folder: String,
+) -> Result(Nil, types.MigrateError) {
   simplifile.create_directory_all(migrations_folder)
   |> result.replace_error(types.CreateFolderError(migrations_folder))
 }
