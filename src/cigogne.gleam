@@ -1,24 +1,31 @@
 import argv
 import cigogne/internal/database
-import cigogne/internal/db_operations
 import cigogne/internal/fs
-import cigogne/internal/migrations
-import cigogne/internal/utils
+import cigogne/internal/migrations_utils
 import cigogne/types
 import gleam/bool
 import gleam/int
 import gleam/io
 import gleam/list
-import gleam/option
-import gleam/order
 import gleam/result
-import gleam/string
-import pog
 import tempo/datetime
 import tempo/instant
-import tempo/naive_datetime
 
-pub const timestamp_format = fs.timestamp_format
+type SchemaData {
+  SchemaData(generate: Bool, filename: String)
+}
+
+/// The MigrationEngine contains all the data required to apply and roll back migrations.
+/// Checks are run in order to make sure the database is in a correct state.
+/// When you have a MigrationEngine, you can be sure that your database is in a correct state to apply migrations.
+pub opaque type MigrationEngine {
+  MigrationEngine(
+    db_data: database.DatabaseData,
+    schema_data: SchemaData,
+    applied: List(types.Migration),
+    files: List(types.Migration),
+  )
+}
 
 pub fn main() {
   {
@@ -79,6 +86,10 @@ fn show_usage() -> Result(Nil, types.MigrateError) {
   Ok(Nil)
 }
 
+/// The default configuration you can use to get a MigrationEngine.
+/// This configuration uses the DATABASE_URL envvar to connect to the database,
+/// uses the 'default' schema, keeps migration data in the '_migrations' table
+/// looks for migrations in 'priv/migrations/*.sql' files and generates a schema file in the sql.schema file
 pub const default_config = types.Config(
   connection: types.EnvVarConfig,
   database_schema_to_use: "default",
@@ -88,54 +99,30 @@ pub const default_config = types.Config(
   migration_file_pattern: "*.sql",
 )
 
-fn create_pog_connection(
-  config: types.ConnectionConfig,
-) -> Result(#(pog.Connection, option.Option(String)), types.MigrateError) {
-  case config {
-    types.ConnectionConfig(connection:) -> Ok(#(connection, option.None))
-    types.EnvVarConfig -> {
-      use url <- result.try(database.get_url())
-      use connection <- result.try(database.connect(url))
-      #(connection, option.Some(url)) |> Ok
-    }
-    types.PogConfig(config:) -> Ok(#(config |> pog.connect, option.None))
-    types.UrlConfig(url:) -> {
-      use connection <- result.try(database.connect(url))
-      Ok(#(connection, option.Some(url)))
-    }
-  }
-}
-
-/// CreatesConnectionConfiggine from a configuration.
-/// This function will try to connect to the database.
-/// Then it will fetch the applied migrations and the existing migration files.
+/// Creates a MigrationEngine from a configuration.
+/// This function will try to connect to the database, create the migrations table if it doesn't exist.
+/// Then it will fetch the applied migrations and the existing migration files and check hashes do match.
 pub fn create_migration_engine(
   config: types.Config,
-) -> Result(types.MigrationEngine, types.MigrateError) {
-  use #(connection, db_url) <- result.try(create_pog_connection(
+) -> Result(MigrationEngine, types.MigrateError) {
+  use db_data <- result.try(database.get_db_data(
     config.connection,
+    config.database_schema_to_use,
+    config.migration_table_name,
   ))
-  let db_data =
-    types.DatabaseData(
-      connection,
-      config.migration_table_name,
-      config.database_schema_to_use,
-    )
 
-  use _ <- result.try(db_operations.apply_cigogne_zero(db_data))
-  use applied <- result.try(db_operations.get_applied_migrations(db_data))
+  use _ <- result.try(database.apply_cigogne_zero(db_data))
+  use applied <- result.try(database.get_applied_migrations(db_data))
   use files <- result.try(fs.get_migrations(
     config.migration_folder,
     config.migration_file_pattern,
   ))
   use _ <- result.try(verify_applied_migration_hashes(applied, files))
 
-  Ok(types.MigrationEngine(
+  Ok(MigrationEngine(
     db_data:,
-    schema_data: types.SchemaData(
-      db_url: bool.guard(config.schema_config.generate, db_url, fn() {
-        option.None
-      }),
+    schema_data: SchemaData(
+      generate: config.schema_config.generate,
       filename: config.schema_config.filename,
     ),
     applied:,
@@ -143,7 +130,7 @@ pub fn create_migration_engine(
   ))
 }
 
-/// Create a new migration file in the `priv/migrations` folder with the provided name.
+/// Create a new migration file in the specified folder with the provided name.
 pub fn new_migration(
   migrations_folder: String,
   name: String,
@@ -159,12 +146,10 @@ pub fn new_migration(
 }
 
 /// Apply the next migration that wasn't applied yet.
-/// The migrations are acquired from priv/migrations/*.sql files.
-/// This function does not create a schema file.
 pub fn apply_next_migration(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
 ) -> Result(Nil, types.MigrateError) {
-  use migration <- result.try(migrations.find_first_non_applied_migration(
+  use migration <- result.try(migrations_utils.find_first_non_applied_migration(
     engine.files,
     engine.applied,
   ))
@@ -172,23 +157,23 @@ pub fn apply_next_migration(
 }
 
 /// Roll back the last applied migration.
-/// The migrations are acquired from priv/migrations/*.sql files.
-/// This function does not create a schema file.
 pub fn roll_back_previous_migration(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
 ) -> Result(Nil, types.MigrateError) {
   use last <- result.try(get_last_applied_migration(engine))
   roll_back_migration(engine, last)
 }
 
-/// Apply or roll back migrations until we reach the migration corresponding to the provided number.
-/// The migrations are acquired from priv/migrations/*.sql files.
-/// This function does not create a schema file.
+/// Apply or roll back the next `count` migrations.
 pub fn execute_n_migrations(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
   count: Int,
 ) -> Result(Nil, types.MigrateError) {
-  migrations.find_n_migrations_to_apply(engine.files, engine.applied, count)
+  migrations_utils.find_n_migrations_to_apply(
+    engine.files,
+    engine.applied,
+    count,
+  )
   |> result.then(fn(migrations) {
     case count > 0 {
       True -> migrations |> list.try_each(apply_migration(engine, _))
@@ -198,68 +183,68 @@ pub fn execute_n_migrations(
 }
 
 /// Apply migrations until we reach the last defined migration.
-/// The migrations are acquired from priv/migrations/*.sql files.
-/// This function does not create a schema file.
 pub fn execute_migrations_to_last(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
 ) -> Result(Nil, types.MigrateError) {
-  migrations.find_all_non_applied_migration(engine.files, engine.applied)
+  migrations_utils.find_all_non_applied_migration(engine.files, engine.applied)
   |> result.then(list.try_each(_, apply_migration(engine, _)))
 }
 
 /// Apply a migration to the database.
-/// This function does not create a schema file.
 pub fn apply_migration(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
   migration: types.Migration,
 ) -> Result(Nil, types.MigrateError) {
-  io.println("\nApplying migration " <> fs.format_migration_name(migration))
+  io.println(
+    "\nApplying migration " <> migrations_utils.format_migration_name(migration),
+  )
 
-  db_operations.apply_migration(engine.db_data, migration)
+  database.apply_migration(engine.db_data, migration)
   |> result.map(fn(_) {
-    io.println("Migration applied : " <> fs.format_migration_name(migration))
+    io.println(
+      "Migration applied : "
+      <> migrations_utils.format_migration_name(migration),
+    )
   })
 }
 
 /// Roll back a migration from the database.
-/// This function does not create a schema file.
 pub fn roll_back_migration(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
   migration: types.Migration,
 ) -> Result(Nil, types.MigrateError) {
-  io.println("\nRolling back migration " <> fs.format_migration_name(migration))
+  io.println(
+    "\nRolling back migration "
+    <> migrations_utils.format_migration_name(migration),
+  )
 
-  db_operations.rollback_migration(engine.db_data, migration)
+  database.rollback_migration(engine.db_data, migration)
   |> result.map(fn(_) {
     io.println(
-      "Migration rolled back : " <> fs.format_migration_name(migration),
+      "Migration rolled back : "
+      <> migrations_utils.format_migration_name(migration),
     )
   })
 }
 
 /// Get all defined migrations in your project.
-/// Migration files are searched in the `priv/migrations` folder.
 pub fn get_migrations(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
 ) -> Result(List(types.Migration), types.MigrateError) {
   engine.files |> Ok
 }
 
-/// Get details about the schema of the database at the provided url.
-pub fn get_schema(url: String) -> Result(String, types.MigrateError) {
-  database.get_schema(url)
+/// Get details about the schema of the database.
+pub fn get_schema(engine: MigrationEngine) -> Result(String, types.MigrateError) {
+  database.get_schema(engine.db_data)
 }
 
 /// Create or update a schema file if the engine configuration permits it.
-/// See update_schema_file.
-pub fn update_schema(engine: types.MigrationEngine) {
-  case engine.schema_data.db_url {
-    option.None -> {
-      io.println("No URL provided, schema will not be updated")
-      Ok(Nil)
-    }
-    option.Some(url) -> {
-      use schema <- result.try(get_schema(url))
+pub fn update_schema(engine: MigrationEngine) {
+  case engine.schema_data.generate {
+    False -> Ok(Nil)
+    True -> {
+      use schema <- result.try(get_schema(engine))
       fs.write_schema_file(engine.schema_data.filename, schema)
       |> result.map(fn(_) { io.println("Schema file updated") })
     }
@@ -267,34 +252,28 @@ pub fn update_schema(engine: types.MigrationEngine) {
 }
 
 fn get_last_applied_migration(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
 ) -> Result(types.Migration, types.MigrateError) {
   engine.applied
   |> list.last
   |> result.replace_error(types.NoMigrationToRollbackError)
   |> result.then(fn(mig) {
     use <- bool.guard(is_zero_migration(mig), Ok(mig))
-    migrations.find_migration(engine.files, mig)
+    migrations_utils.find_migration(engine.files, mig)
   })
 }
 
-fn show(engine: types.MigrationEngine) -> Result(Nil, types.MigrateError) {
+fn show(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
   use last <- result.try(get_last_applied_migration(engine))
 
   io.println(
-    "Last applied migration: "
-    <> last.timestamp |> naive_datetime.format(timestamp_format)
-    <> "-"
-    <> last.name,
+    "Last applied migration: " <> migrations_utils.format_migration_name(last),
   )
 
-  case engine.schema_data.db_url {
-    option.None -> {
-      io.println("Couldn't get schema because no URL was provided")
-      Ok(Nil)
-    }
-    option.Some(url) -> {
-      use schema <- result.try(get_schema(url))
+  case engine.schema_data.generate {
+    False -> Ok(Nil)
+    True -> {
+      use schema <- result.try(get_schema(engine))
 
       io.println("")
       io.println(schema)
@@ -310,7 +289,7 @@ pub fn print_error(error: types.MigrateError) -> Nil {
 
 /// Verify the hash integrity of applied migrations.
 /// If an already applied migration has been modified, it should most likely be run again by the user.
-pub fn verify_applied_migration_hashes(
+fn verify_applied_migration_hashes(
   applied: List(types.Migration),
   files: List(types.Migration),
 ) -> Result(Nil, types.MigrateError) {
@@ -321,7 +300,7 @@ pub fn verify_applied_migration_hashes(
         // Not checking zero migrations because we don't have their queries here
         True -> verify_applied_migration_hashes(rest, files)
         False -> {
-          use file <- result.try(migrations.find_migration(files, mig))
+          use file <- result.try(migrations_utils.find_migration(files, mig))
           case mig.sha256 == file.sha256 {
             False -> Error(types.FileHashChanged(mig.timestamp, mig.name))
             True -> verify_applied_migration_hashes(rest, files)
@@ -334,17 +313,16 @@ pub fn verify_applied_migration_hashes(
 
 /// Checks if a migration is a zero migration (has been created with create_zero_migration)
 pub fn is_zero_migration(migration: types.Migration) -> Bool {
-  migrations.is_zero_migration(migration)
+  migrations_utils.is_zero_migration(migration)
 }
 
 /// Apply a migration to the database if it hasn't been applied.
-/// This function does not create a schema file.
 pub fn apply_migration_if_not_applied(
-  engine: types.MigrationEngine,
+  engine: MigrationEngine,
   migration: types.Migration,
 ) -> Result(Nil, types.MigrateError) {
   use <- bool.guard(
-    migrations.find_migration(engine.applied, migration) |> result.is_ok,
+    migrations_utils.find_migration(engine.applied, migration) |> result.is_ok,
     Ok(Nil),
   )
   apply_migration(engine, migration)

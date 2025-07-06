@@ -1,25 +1,13 @@
+import cigogne/internal/migration_parser
+import cigogne/internal/migrations_utils
 import cigogne/internal/utils
 import cigogne/types
-import gleam/bool
 import gleam/list
-import gleam/option
 import gleam/result
-import gleam/string
 import globlin
 import globlin_fs
 import simplifile
 import tempo
-import tempo/naive_datetime
-
-const timestamp_format = tempo.CustomNaive("YYYYMMDDHHmmss")
-
-const migration_up_guard = "--- migration:up"
-
-const migration_down_guard = "--- migration:down"
-
-const migration_end_guard = "--- migration:end"
-
-const max_name_length = 255
 
 pub fn get_migrations(
   migrations_folder: String,
@@ -49,17 +37,17 @@ pub fn get_migrations(
   })
 }
 
-fn read_migration_file(
+pub fn read_migration_file(
   path: String,
 ) -> Result(types.Migration, types.MigrateError) {
-  use ts_and_name <- result.try(parse_file_name(path))
+  use ts_and_name <- result.try(migration_parser.parse_file_name(path))
   use content <- result.try(
     simplifile.read(path) |> result.replace_error(types.FileError(path)),
   )
 
   let sha256 = utils.make_sha256(content)
 
-  case parse_migration_file(content) {
+  case migration_parser.parse_migration_file(content) {
     Error(error) -> Error(types.ContentError(path, error))
     Ok(#(queries_up, queries_down)) ->
       Ok(types.Migration(
@@ -70,182 +58,6 @@ fn read_migration_file(
         name: ts_and_name.1,
         sha256:,
       ))
-  }
-}
-
-pub fn parse_file_name(
-  path: String,
-) -> Result(#(tempo.NaiveDateTime, String), types.MigrateError) {
-  use <- bool.guard(
-    !string.ends_with(path, ".sql"),
-    Error(types.FileNameError(path)),
-  )
-
-  use ts_and_name <- result.try(
-    string.split(path, "/")
-    |> list.last
-    |> result.map(string.drop_end(_, 4))
-    |> result.then(string.split_once(_, "-"))
-    |> result.replace_error(types.FileNameError(path)),
-  )
-
-  use ts <- result.try(
-    naive_datetime.parse(ts_and_name.0, timestamp_format)
-    |> result.replace_error(types.DateParseError(ts_and_name.0)),
-  )
-  use name <- result.try(check_name(ts_and_name.1))
-
-  #(ts, name) |> Ok
-}
-
-pub fn format_migration_name(migration: types.Migration) -> String {
-  migration.timestamp |> naive_datetime.format(timestamp_format)
-  <> "-"
-  <> migration.name
-}
-
-pub fn parse_migration_file(
-  content: String,
-) -> Result(#(List(String), List(String)), String) {
-  use cut_migration_up <- utils.result_guard(
-    string.split_once(content, migration_up_guard),
-    Error("File badly formatted: '" <> migration_up_guard <> "' not found !"),
-  )
-  use cut_migration_down <- utils.result_guard(
-    string.split_once(cut_migration_up.1, migration_down_guard),
-    Error("File badly formatted: '" <> migration_down_guard <> "' not found !"),
-  )
-  use cut_end <- utils.result_guard(
-    string.split_once(cut_migration_down.1, migration_end_guard),
-    Error("File badly formatted: '" <> migration_end_guard <> "' not found !"),
-  )
-
-  use queries_up <- result.try(cut_migration_down.0 |> split_queries)
-  use queries_down <- result.try(cut_end.0 |> split_queries)
-
-  case queries_up, queries_down {
-    [], _ -> Error("migration:up is empty !")
-    _, [] -> Error("migration:down is empty !")
-    up, down -> Ok(#(up, down))
-  }
-}
-
-fn split_queries(queries: String) -> Result(List(String), String) {
-  let graphemes = queries |> string.to_graphemes
-
-  use queries <- result.try(
-    analyse_sql_graphemes(graphemes, [], SimpleContext, []),
-  )
-
-  queries
-  |> list.reverse
-  |> list.map(string.trim)
-  |> list.filter(fn(q) { !string.is_empty(q) })
-  |> list.map(fn(q) { q <> ";" })
-  |> Ok
-}
-
-type QueryContext {
-  SimpleContext
-  InStringLiteral
-  InDollarQuoted(tag: String)
-  InDollarTag(tag_so_far: List(String), parent_tag: option.Option(String))
-}
-
-fn analyse_sql_graphemes(
-  sql_graphemes: List(String),
-  previous_graphemes: List(String),
-  context: QueryContext,
-  queries: List(String),
-) -> Result(List(String), String) {
-  case sql_graphemes, context {
-    [], SimpleContext -> queries |> add_if_not_empty(previous_graphemes) |> Ok
-    [], _ -> Error("Migration badly formated: Unfinished literal")
-    [";", ..rest], SimpleContext ->
-      analyse_sql_graphemes(
-        rest,
-        [],
-        SimpleContext,
-        queries |> add_if_not_empty(previous_graphemes),
-      )
-    ["'", ..rest], SimpleContext ->
-      analyse_sql_graphemes(
-        rest,
-        ["'", ..previous_graphemes],
-        InStringLiteral,
-        queries,
-      )
-    ["'", ..rest], InStringLiteral ->
-      analyse_sql_graphemes(
-        rest,
-        ["'", ..previous_graphemes],
-        SimpleContext,
-        queries,
-      )
-    ["$", ..rest], SimpleContext ->
-      analyse_sql_graphemes(
-        rest,
-        ["$", ..previous_graphemes],
-        InDollarTag([], option.None),
-        queries,
-      )
-    ["$", ..rest], InDollarTag(tag, option.None) ->
-      analyse_sql_graphemes(
-        rest,
-        ["$", ..previous_graphemes],
-        InDollarQuoted(tag |> list.reverse |> string.join("")),
-        queries,
-      )
-    ["$", ..rest], InDollarTag(tag_graphemes, option.Some(tag)) ->
-      analyse_sql_graphemes(
-        rest,
-        ["$", ..previous_graphemes],
-        case tag_graphemes |> list.reverse |> string.join("") {
-          a if a == tag -> SimpleContext
-          _ -> InDollarQuoted(tag)
-        },
-        queries,
-      )
-    ["$", ..rest], InDollarQuoted(tag) ->
-      analyse_sql_graphemes(
-        rest,
-        ["$", ..previous_graphemes],
-        InDollarTag([], option.Some(tag)),
-        queries,
-      )
-    [g, ..rest], InDollarTag([], parent) ->
-      analyse_sql_graphemes(
-        rest,
-        [g, ..previous_graphemes],
-        case g {
-          "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ->
-            case parent {
-              option.None -> SimpleContext
-              option.Some(tag) -> InDollarQuoted(tag)
-            }
-          _ -> InDollarTag([g], parent)
-        },
-        queries,
-      )
-    [g, ..rest], InDollarTag(tag_graphemes, parent) ->
-      analyse_sql_graphemes(
-        rest,
-        [g, ..previous_graphemes],
-        InDollarTag([g, ..tag_graphemes], parent),
-        queries,
-      )
-    [g, ..rest], ctx ->
-      analyse_sql_graphemes(rest, [g, ..previous_graphemes], ctx, queries)
-  }
-}
-
-fn add_if_not_empty(
-  string_list: List(String),
-  graphemes_to_add: List(String),
-) -> List(String) {
-  case graphemes_to_add {
-    [] -> string_list
-    _ -> [graphemes_to_add |> list.reverse |> string.join(""), ..string_list]
   }
 }
 
@@ -269,9 +81,11 @@ pub fn create_new_migration_file(
   timestamp: tempo.NaiveDateTime,
   name: String,
 ) -> Result(String, types.MigrateError) {
-  use name <- result.try(check_name(name))
+  use name <- result.try(migrations_utils.check_name(name))
   let file_path =
-    migrations_folder <> "/" <> to_migration_filename(timestamp, name)
+    migrations_folder
+    <> "/"
+    <> migrations_utils.to_migration_filename(timestamp, name)
 
   create_migration_folder(migrations_folder)
   |> result.then(fn(_) {
@@ -281,11 +95,11 @@ pub fn create_new_migration_file(
   |> result.then(fn(_) {
     file_path
     |> simplifile.write(
-      migration_up_guard
+      migration_parser.migration_up_guard
       <> "\n\n"
-      <> migration_down_guard
+      <> migration_parser.migration_down_guard
       <> "\n\n"
-      <> migration_end_guard,
+      <> migration_parser.migration_end_guard,
     )
     |> result.replace_error(types.FileError(file_path))
   })
@@ -297,19 +111,4 @@ fn create_migration_folder(
 ) -> Result(Nil, types.MigrateError) {
   simplifile.create_directory_all(migrations_folder)
   |> result.replace_error(types.CreateFolderError(migrations_folder))
-}
-
-pub fn to_migration_filename(
-  timestamp: tempo.NaiveDateTime,
-  name: String,
-) -> String {
-  timestamp |> naive_datetime.format(timestamp_format) <> "-" <> name <> ".sql"
-}
-
-fn check_name(name: String) -> Result(String, types.MigrateError) {
-  use <- bool.guard(
-    string.length(name) > max_name_length,
-    Error(types.NameTooLongError(name)),
-  )
-  Ok(name)
 }

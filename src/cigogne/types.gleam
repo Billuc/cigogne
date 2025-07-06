@@ -1,7 +1,6 @@
 import cigogne/internal/utils
 import gleam/io
 import gleam/list
-import gleam/option
 import pog
 import tempo
 import tempo/naive_datetime
@@ -31,28 +30,6 @@ pub type Config {
 
 pub type SchemaConfig {
   SchemaConfig(generate: Bool, filename: String)
-}
-
-pub type DatabaseData {
-  DatabaseData(
-    connection: pog.Connection,
-    migrations_table_name: String,
-    schema: String,
-  )
-}
-
-pub type SchemaData {
-  SchemaData(db_url: option.Option(String), filename: String)
-}
-
-/// The MigrationEngine contains all the data required to apply and roll back migrations.
-pub type MigrationEngine {
-  MigrationEngine(
-    db_data: DatabaseData,
-    schema_data: SchemaData,
-    applied: List(Migration),
-    files: List(Migration),
-  )
 }
 
 /// The errors returned by cigogne

@@ -6,7 +6,34 @@ import gleam/option
 import gleam/order
 import gleam/result
 import gleam/string
+import tempo
 import tempo/naive_datetime
+
+pub const timestamp_format = tempo.CustomNaive("YYYYMMDDHHmmss")
+
+const max_name_length = 255
+
+pub fn format_migration_name(migration: types.Migration) -> String {
+  migration.timestamp
+  |> naive_datetime.format(timestamp_format)
+  <> "-"
+  <> migration.name
+}
+
+pub fn to_migration_filename(
+  timestamp: tempo.NaiveDateTime,
+  name: String,
+) -> String {
+  timestamp |> naive_datetime.format(timestamp_format) <> "-" <> name <> ".sql"
+}
+
+pub fn check_name(name: String) -> Result(String, types.MigrateError) {
+  use <- bool.guard(
+    string.length(name) > max_name_length,
+    Error(types.NameTooLongError(name)),
+  )
+  Ok(name)
+}
 
 pub fn find_migration(
   migrations: List(types.Migration),
