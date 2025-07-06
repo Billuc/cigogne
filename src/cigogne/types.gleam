@@ -5,7 +5,7 @@ import pog
 import tempo
 import tempo/naive_datetime
 
-/// The configuration used to create a MigrationEngine
+/// The configuration linked to the database connection
 pub type ConnectionConfig {
   /// The default configuration. It uses the DATABASE_URL envvar to connect
   EnvVarConfig
@@ -17,6 +17,7 @@ pub type ConnectionConfig {
   ConnectionConfig(connection: pog.Connection)
 }
 
+/// cigogne's general configuration
 pub type Config {
   Config(
     connection: ConnectionConfig,
@@ -28,6 +29,7 @@ pub type Config {
   )
 }
 
+/// The configuration linked to schema file generation
 pub type SchemaConfig {
   SchemaConfig(generate: Bool, filename: String)
 }
