@@ -113,7 +113,10 @@ pub fn create_migration_engine(
       use url <- result.try(database.get_url())
       create_engine_from_url(url)
     }
-    PogConfig(conf) -> create_engine_from_conn(conf |> pog.connect)
+    PogConfig(conf) -> {
+      let assert Ok(actor) = conf |> pog.start()
+      create_engine_from_conn(actor.data)
+    }
     UrlConfig(url) -> create_engine_from_url(url)
   }
 }

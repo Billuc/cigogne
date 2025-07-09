@@ -15,7 +15,7 @@ pub type MigrateError {
   FileNameError(path: String)
   CompoundError(errors: List(MigrateError))
   ContentError(path: String, error: String)
-  PGOTransactionError(error: pog.TransactionError)
+  PGOTransactionError(error: pog.TransactionError(String))
   PGOQueryError(error: pog.QueryError)
   NoResultError
   SchemaQueryError(error: String)

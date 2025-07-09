@@ -1,6 +1,7 @@
 import cigogne/internal/utils
 import cigogne/types
 import envoy
+import gleam/erlang/process
 import gleam/result
 import pog
 import shellout
@@ -12,11 +13,15 @@ pub fn get_url() -> Result(String, types.MigrateError) {
 
 pub fn connect(url: String) -> Result(pog.Connection, types.MigrateError) {
   use config <- result.try(get_config(url))
-  config |> pog.connect |> Ok
+
+  let assert Ok(actor) = pog.start(config)
+
+  actor.data |> Ok
 }
 
 fn get_config(url: String) -> Result(pog.Config, types.MigrateError) {
-  pog.url_config(url)
+  let db_name = process.new_name("test")
+  pog.url_config(db_name, url)
   |> result.replace_error(types.UrlError(url))
 }
 
