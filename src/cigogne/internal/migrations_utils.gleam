@@ -196,6 +196,24 @@ fn find_n_to_rollback(
   }
 }
 
+/// Create a "zero" migration that should be applied before the user's migrations
+pub fn create_zero_migration(
+  name: String,
+  queries_up: List(String),
+  queries_down: List(String),
+) -> types.Migration {
+  types.Migration(
+    "",
+    utils.tempo_epoch(),
+    name,
+    queries_up,
+    queries_down,
+    utils.make_sha256(
+      queries_up |> string.join(";") <> queries_down |> string.join(";"),
+    ),
+  )
+}
+
 /// Checks if a migration is a zero migration (has been created with create_zero_migration)
 pub fn is_zero_migration(migration: types.Migration) -> Bool {
   { migration.path == "" }

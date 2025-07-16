@@ -4,16 +4,17 @@ import cigogne/types
 import gleam/list
 import gleeunit
 import gleeunit/should
+import simplifile
 import tempo/naive_datetime
 
 pub fn main() {
   gleeunit.main()
 }
 
-// gleeunit test functions end in `_test`
-pub fn hello_world_test() {
-  1
-  |> should.equal(1)
+pub fn new_migration_test() {
+  let test_folder = "/priv_test"
+
+  simplifile.exist(test_folder)
 }
 
 pub fn test_tempo_format() {

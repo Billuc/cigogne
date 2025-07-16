@@ -105,7 +105,7 @@ pub const default_config = types.Config(
 pub fn create_migration_engine(
   config: types.Config,
 ) -> Result(MigrationEngine, types.MigrateError) {
-  use db_data <- result.try(database.get_db_data(
+  use db_data <- result.try(database.init(
     config.connection,
     config.database_schema_to_use,
     config.migration_table_name,

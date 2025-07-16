@@ -1,3 +1,4 @@
+import cigogne/internal/migrations_utils
 import cigogne/internal/utils
 import cigogne/types
 import envoy
@@ -38,7 +39,7 @@ pub type DatabaseData {
   )
 }
 
-pub fn get_db_data(
+pub fn init(
   config: types.ConnectionConfig,
   schema: String,
   migrations_table_name: String,
@@ -98,7 +99,7 @@ pub fn apply_cigogne_zero(data: DatabaseData) -> Result(Nil, types.MigrateError)
     Ok(True) -> Ok(Nil)
     Error(err) -> Error(err)
     Ok(False) -> {
-      create_zero_migration(
+      migrations_utils.create_zero_migration(
         "CreateMigrationTable",
         [
           create_migrations_table
@@ -205,24 +206,6 @@ fn build_migration_data(
       Error(types.DateParseError(utils.pog_timestamp_to_string(data.0)))
     Ok(timestamp) -> Ok(types.Migration("", timestamp, data.1, [], [], data.2))
   }
-}
-
-/// Create a "zero" migration that should be applied before the user's migrations
-pub fn create_zero_migration(
-  name: String,
-  queries_up: List(String),
-  queries_down: List(String),
-) -> types.Migration {
-  types.Migration(
-    "",
-    utils.tempo_epoch(),
-    name,
-    queries_up,
-    queries_down,
-    utils.make_sha256(
-      queries_up |> string.join(";") <> queries_down |> string.join(";"),
-    ),
-  )
 }
 
 pub fn get_schema(data: DatabaseData) -> Result(String, types.MigrateError) {
