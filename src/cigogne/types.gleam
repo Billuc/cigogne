@@ -5,6 +5,35 @@ import pog
 import tempo
 import tempo/naive_datetime
 
+/// The configuration linked to the database connection
+pub type ConnectionConfig {
+  /// The default configuration. It uses the DATABASE_URL envvar to connect
+  EnvVarConfig
+  /// A configuration using the URL to the database
+  UrlConfig(url: String)
+  /// A configuration using a pog.Config to connect. It disables schema generation.
+  PogConfig(config: pog.Config)
+  /// A configuration using a pog.Connection directly. It disables schema generation.
+  ConnectionConfig(connection: pog.Connection)
+}
+
+/// cigogne's general configuration
+pub type Config {
+  Config(
+    connection: ConnectionConfig,
+    database_schema_to_use: String,
+    migration_table_name: String,
+    schema_config: SchemaConfig,
+    migration_folder: String,
+    migration_file_pattern: String,
+  )
+}
+
+/// The configuration linked to schema file generation
+pub type SchemaConfig {
+  SchemaConfig(generate: Bool, filename: String)
+}
+
 /// The errors returned by cigogne
 pub type MigrateError {
   EnvVarError(name: String)

@@ -1,45 +1,38 @@
 import cigogne/internal/utils
 import cigogne/types
 import gleam/bool
-import gleam/dynamic/decode
 import gleam/list
 import gleam/option
 import gleam/order
 import gleam/result
 import gleam/string
-import pog
+import tempo
 import tempo/naive_datetime
 
-const query_applied_migrations = "SELECT createdAt, name, sha256 FROM _migrations ORDER BY appliedAt ASC;"
+pub const timestamp_format = tempo.CustomNaive("YYYYMMDDHHmmss")
 
-pub fn get_applied_migrations(
-  conn: pog.Connection,
-) -> Result(List(types.Migration), types.MigrateError) {
-  pog.query(query_applied_migrations)
-  |> pog.returning({
-    use timestamp <- decode.field(0, pog.timestamp_decoder())
-    use name <- decode.field(1, decode.string)
-    use hash <- decode.field(2, decode.string)
-    decode.success(#(timestamp, name, hash))
-  })
-  |> pog.execute(conn)
-  |> result.map_error(types.PGOQueryError)
-  |> result.then(fn(returned) {
-    case returned {
-      pog.Returned(0, _) | pog.Returned(_, []) -> Error(types.NoResultError)
-      pog.Returned(_, applied) ->
-        applied
-        |> list.try_map(fn(data) {
-          utils.pog_to_tempo_timestamp(data.0)
-          |> result.map(fn(timestamp) {
-            types.Migration("", timestamp, data.1, [], [], data.2)
-          })
-          |> result.replace_error(
-            types.DateParseError(utils.pog_timestamp_to_string(data.0)),
-          )
-        })
-    }
-  })
+const max_name_length = 255
+
+pub fn format_migration_name(migration: types.Migration) -> String {
+  migration.timestamp
+  |> naive_datetime.format(timestamp_format)
+  <> "-"
+  <> migration.name
+}
+
+pub fn to_migration_filename(
+  timestamp: tempo.NaiveDateTime,
+  name: String,
+) -> String {
+  timestamp |> naive_datetime.format(timestamp_format) <> "-" <> name <> ".sql"
+}
+
+pub fn check_name(name: String) -> Result(String, types.MigrateError) {
+  use <- bool.guard(
+    string.length(name) > max_name_length,
+    Error(types.NameTooLongError(name)),
+  )
+  Ok(name)
 }
 
 pub fn find_migration(
@@ -201,6 +194,24 @@ fn find_n_to_rollback(
           find_n_to_rollback(rest, migrations, [mig, ..found], n - 1)
       }
   }
+}
+
+/// Create a "zero" migration that should be applied before the user's migrations
+pub fn create_zero_migration(
+  name: String,
+  queries_up: List(String),
+  queries_down: List(String),
+) -> types.Migration {
+  types.Migration(
+    "",
+    utils.tempo_epoch(),
+    name,
+    queries_up,
+    queries_down,
+    utils.make_sha256(
+      queries_up |> string.join(";") <> queries_down |> string.join(";"),
+    ),
+  )
 }
 
 /// Checks if a migration is a zero migration (has been created with create_zero_migration)

@@ -11,17 +11,6 @@ import tempo/date
 import tempo/naive_datetime
 import tempo/time
 
-pub fn result_guard(
-  result: Result(a, b),
-  otherwise: c,
-  callback: fn(a) -> c,
-) -> c {
-  case result {
-    Error(_) -> otherwise
-    Ok(v) -> callback(v)
-  }
-}
-
 pub fn describe_query_error(error: pog.QueryError) -> String {
   case error {
     pog.ConnectionUnavailable -> "CONNECTION UNAVAILABLE"
