@@ -26,7 +26,7 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - run: psql --host localhost --user lbillaud -f test/setup_test_db.sql cigogne_test
+      - run: psql -f test/setup_test_db.sql postgres://lbillaud:mysecretpassword@localhost:5432/cigogne_test
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "27.1.2"

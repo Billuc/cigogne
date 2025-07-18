@@ -7,19 +7,30 @@ import gleam/option
 import gleam/result
 import pog
 
-/// This assumes that we have a database at localhost:5432 that we can connect to without password
+// Modify these constants to match your local database setup
 const db_user = "lbillaud"
 
-const db_database = "cigogne_test"
+const db_password = option.Some("mysecretpassword")
 
-const db_url = "postgres://" <> db_user <> "@localhost:5432/" <> db_database
+const db_database = "cigogne_test"
 
 const schema = "test"
 
 const migration_table = "migs"
 
+fn db_url() {
+  "postgres://"
+  <> db_user
+  <> case db_password {
+    option.Some(password) -> ":" <> password
+    option.None -> ""
+  }
+  <> "@localhost:5432/"
+  <> db_database
+}
+
 pub fn init_with_envvar_test() {
-  envoy.set("DATABASE_URL", db_url)
+  envoy.set("DATABASE_URL", db_url())
 
   let init_res = database.init(types.EnvVarConfig, schema, migration_table)
 
@@ -27,17 +38,18 @@ pub fn init_with_envvar_test() {
 
   let assert Ok(init_res) = init_res
 
-  assert init_res.db_url == option.Some(db_url)
+  assert init_res.db_url == option.Some(db_url())
   assert init_res.migrations_table_name == migration_table
   assert init_res.schema == schema
 }
 
 pub fn init_with_url_test() {
-  let init_res = database.init(types.UrlConfig(db_url), schema, migration_table)
+  let init_res =
+    database.init(types.UrlConfig(db_url()), schema, migration_table)
 
   let assert Ok(init_res) = init_res
 
-  assert init_res.db_url == option.Some(db_url)
+  assert init_res.db_url == option.Some(db_url())
   assert init_res.migrations_table_name == migration_table
   assert init_res.schema == schema
 }
@@ -64,7 +76,7 @@ pub fn init_with_pog_config_test() {
 }
 
 pub fn init_with_connection_test() {
-  let assert Ok(conf) = pog.url_config(db_url)
+  let assert Ok(conf) = pog.url_config(db_url())
   let conn = pog.connect(conf)
 
   let init_res =
@@ -78,7 +90,7 @@ pub fn init_with_connection_test() {
 
 pub fn migration_table_exists_after_zero_test() {
   let assert Ok(init_res) =
-    database.init(types.UrlConfig(db_url), schema, migration_table)
+    database.init(types.UrlConfig(db_url()), schema, migration_table)
 
   let assert Ok(_) =
     init_res
@@ -105,7 +117,7 @@ pub fn apply_get_rollback_migrations_test() {
     )
 
   let assert Ok(db) =
-    database.init(types.UrlConfig(db_url), schema, migration_table)
+    database.init(types.UrlConfig(db_url()), schema, migration_table)
 
   let assert Ok(_) = database.apply_cigogne_zero(db)
 
