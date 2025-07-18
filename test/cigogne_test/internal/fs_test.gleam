@@ -3,8 +3,8 @@ import cigogne/internal/migrations_utils
 import cigogne/types
 import gleam/list
 import gleam/string
+import gleam/time/timestamp
 import simplifile
-import tempo/naive_datetime
 
 const migrations_folder = "priv_test/migrations"
 
@@ -26,8 +26,9 @@ pub fn get_migrations_test() {
     |> list.sort(migrations_utils.compare_migrations)
 
   let assert [first, second, ..] = sorted_migs
+  let assert Ok(first_ts) = timestamp.parse_rfc3339("2024-01-01T12:32:46Z")
 
-  assert first.timestamp == naive_datetime.literal("2024-01-01 12:32:46")
+  assert first.timestamp == first_ts
   assert first.name == "Test1"
   assert first.queries_up
     == ["create table todos(id uuid primary key, title text);"]
@@ -35,7 +36,8 @@ pub fn get_migrations_test() {
   assert string.lowercase(first.sha256)
     == "2455946910aa23ec45cd6df7cf526ab0abaa80ce82b9343c550fa0db8ce65626"
 
-  assert second.timestamp == naive_datetime.literal("2024-09-22 06:54:13")
+  let assert Ok(second_ts) = timestamp.parse_rfc3339("2024-09-22T06:54:13Z")
+  assert second.timestamp == second_ts
   assert second.name == "Test2"
   assert second.queries_up
     == [
@@ -65,7 +67,7 @@ pub fn write_schema_file_test() {
 }
 
 pub fn create_new_migration_file_test() {
-  let timestamp = naive_datetime.literal("2024-11-17 18:36:41")
+  let assert Ok(timestamp) = timestamp.parse_rfc3339("2024-11-17T18:36:41Z")
   let non_existing_folder = migrations_folder <> "/new"
 
   let _ = simplifile.delete(non_existing_folder)
@@ -93,7 +95,7 @@ pub fn create_new_migration_file_test() {
 }
 
 pub fn create_new_migration_returns_error_if_name_too_long_test() {
-  let timestamp = naive_datetime.literal("2024-11-17 18:36:41")
+  let assert Ok(timestamp) = timestamp.parse_rfc3339("2024-11-17T18:36:41Z")
 
   let assert Error(err) =
     fs.create_new_migration_file(

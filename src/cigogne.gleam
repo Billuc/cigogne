@@ -8,8 +8,7 @@ import gleam/int
 import gleam/io
 import gleam/list
 import gleam/result
-import tempo/datetime
-import tempo/instant
+import gleam/time/timestamp
 
 type SchemaData {
   SchemaData(generate: Bool, filename: String)
@@ -137,9 +136,7 @@ pub fn new_migration(
 ) -> Result(Nil, types.MigrateError) {
   use path <- result.map(fs.create_new_migration_file(
     migrations_folder,
-    instant.now()
-      |> instant.as_utc_datetime()
-      |> datetime.drop_offset(),
+    timestamp.system_time(),
     name,
   ))
   io.println("Migration file created : " <> path)

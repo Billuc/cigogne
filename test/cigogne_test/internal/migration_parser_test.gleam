@@ -1,15 +1,16 @@
 import cigogne/internal/migration_parser
 import cigogne/types
 import gleam/string
+import gleam/time/timestamp
 import gleeunit/should
-import tempo/naive_datetime
 
 pub fn parse_mig_path_test() {
   let assert Ok(res) =
     "priv/migrations/20241217205656-MigrationTest.sql"
     |> migration_parser.parse_file_name
 
-  assert res.0 == naive_datetime.literal("2024-12-17 20:56:56")
+  let assert Ok(expected_ts) = timestamp.parse_rfc3339("2024-12-17T20:56:56Z")
+  assert res.0 == expected_ts
   assert res.1 == "MigrationTest"
 }
 
@@ -18,7 +19,8 @@ pub fn parse_mig_path_no_slash_test() {
     "20241217205757-SecondMigration.sql"
     |> migration_parser.parse_file_name
 
-  assert res.0 == naive_datetime.literal("2024-12-17 20:57:57")
+  let assert Ok(expected_ts) = timestamp.parse_rfc3339("2024-12-17T20:57:57Z")
+  assert res.0 == expected_ts
   assert res.1 == "SecondMigration"
 }
 

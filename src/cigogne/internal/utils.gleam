@@ -3,13 +3,10 @@ import gleam/crypto
 import gleam/dynamic/decode
 import gleam/int
 import gleam/list
-import gleam/result
 import gleam/string
+import gleam/time/calendar
+import gleam/time/timestamp
 import pog
-import tempo
-import tempo/date
-import tempo/naive_datetime
-import tempo/time
 
 pub fn describe_query_error(error: pog.QueryError) -> String {
   case error {
@@ -32,7 +29,7 @@ pub fn describe_query_error(error: pog.QueryError) -> String {
   }
 }
 
-pub fn describe_transaction_error(error: pog.TransactionError) -> String {
+pub fn describe_transaction_error(error: pog.TransactionError(_)) -> String {
   case error {
     pog.TransactionQueryError(suberror) -> describe_query_error(suberror)
     pog.TransactionRolledBack(message) ->
@@ -50,48 +47,10 @@ pub fn describe_decode_error(error: decode.DecodeError) -> String {
   <> "]"
 }
 
-pub fn tempo_to_pog_timestamp(from: tempo.NaiveDateTime) -> pog.Timestamp {
-  let as_tuple = from |> naive_datetime.to_tuple
-
-  pog.Timestamp(
-    pog.Date(as_tuple.0.0, as_tuple.0.1, as_tuple.0.2),
-    pog.Time(as_tuple.1.0, as_tuple.1.1, as_tuple.1.2, 0),
-  )
-}
-
-pub fn pog_to_tempo_timestamp(
-  from: pog.Timestamp,
-) -> Result(tempo.NaiveDateTime, Nil) {
-  use date <- result.try(pog_to_tempo_date(from.date))
-  use time <- result.try(pog_to_tempo_time(from.time))
-  Ok(naive_datetime.new(date, time))
-}
-
-fn pog_to_tempo_date(from: pog.Date) -> Result(tempo.Date, Nil) {
-  date.new(from.year, from.month, from.day) |> result.replace_error(Nil)
-}
-
-fn pog_to_tempo_time(from: pog.Time) -> Result(tempo.Time, Nil) {
-  time.new(from.hours, from.minutes, from.seconds) |> result.replace_error(Nil)
-}
-
-pub fn pog_timestamp_to_string(value: pog.Timestamp) -> String {
-  [value.date.year, value.date.month, value.date.day]
-  |> list.map(int.to_string)
-  |> string.join("-")
-  <> " "
-  <> [value.time.hours, value.time.minutes, value.time.seconds]
-  |> list.map(fn(v: Int) {
-    case v {
-      v if v < 10 -> "0" <> int.to_string(v)
-      _ -> int.to_string(v)
-    }
-  })
-  |> string.join(":")
-}
-
-pub fn tempo_epoch() -> tempo.NaiveDateTime {
-  naive_datetime.literal("1970-01-01 00:00:00")
+pub fn epoch() -> timestamp.Timestamp {
+  let epoch_date = calendar.Date(1970, calendar.January, 1)
+  let epoch_time = calendar.TimeOfDay(0, 0, 0, 0)
+  timestamp.from_calendar(epoch_date, epoch_time, calendar.utc_offset)
 }
 
 pub fn make_sha256(content: String) -> String {

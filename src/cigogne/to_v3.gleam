@@ -1,7 +1,6 @@
 import cigogne/internal/database
 import cigogne/internal/fs
 import cigogne/internal/migrations_utils
-import cigogne/internal/utils
 import cigogne/types
 import gleam/bool
 import gleam/dynamic/decode
@@ -87,9 +86,7 @@ fn set_hash(
     |> pog.query()
     |> pog.parameter(pog.text(file.sha256))
     |> pog.parameter(pog.text(file.name))
-    |> pog.parameter(pog.timestamp(
-      file.timestamp |> utils.tempo_to_pog_timestamp,
-    ))
+    |> pog.parameter(pog.timestamp(file.timestamp))
     |> pog.execute(connection)
     |> result.map_error(types.PGOQueryError)
     |> result.map(fn(_) {
