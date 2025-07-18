@@ -1,12 +1,13 @@
 import cigogne/internal/database
 import cigogne/internal/fs
-import cigogne/internal/migrations
+import cigogne/internal/migrations_utils
 import cigogne/internal/utils
 import cigogne/types
 import gleam/bool
 import gleam/dynamic/decode
 import gleam/io
 import gleam/list
+import gleam/option
 import gleam/result
 import pog
 
@@ -24,41 +25,51 @@ const set_hash_migration = "UPDATE _migrations SET sha256 = $1 WHERE name = $2 A
 const drop_hash_default_migration = "ALTER TABLE _migrations ALTER COLUMN sha256 DROP DEFAULT;"
 
 pub fn is_v3_applied(
-  connection: pog.Connection,
+  db_data: database.DatabaseData,
 ) -> Result(Bool, types.MigrateError) {
   pog.query(get_migrations_table_columns_query)
   |> pog.returning(decode.at([0], decode.string))
-  |> database.execute(connection)
-  |> result.map(list.any(_, fn(col) { col == hash_column_name }))
+  |> pog.execute(db_data.connection)
+  |> result.map_error(types.PGOQueryError)
+  |> result.map(fn(res) {
+    list.any(res.rows, fn(col) { col == hash_column_name })
+  })
 }
 
-pub fn to_v3(connection: pog.Connection) -> Result(Nil, types.MigrateError) {
-  use is_applied <- result.try(is_v3_applied(connection))
+pub fn to_v3(db_data: database.DatabaseData) -> Result(Nil, types.MigrateError) {
+  use is_applied <- result.try(is_v3_applied(db_data))
   io.println("Is v3 already applied ? " <> is_applied |> bool.to_string)
   use <- bool.guard(is_applied, Ok(Nil))
 
-  use _ <- result.try(create_hash_column(connection))
+  use _ <- result.try(create_hash_column(db_data.connection))
 
-  use migration_files <- result.try(fs.get_migrations())
-  use applied_migrations <- result.try(migrations.get_applied_migrations(
-    connection,
+  use migration_files <- result.try(fs.get_migrations(
+    "priv/migrations",
+    "*.sql",
   ))
+  use applied_migrations <- result.try(database.get_applied_migrations(db_data))
 
   applied_migrations
-  |> list.try_each(set_hash(_, migration_files, connection))
+  |> list.try_each(set_hash(_, migration_files, db_data.connection))
   |> result.map(fn(_) { io.println("All migrations have their hashes set !") })
-  |> result.then(fn(_) { set_hash_not_null(connection) })
+  |> result.try(fn(_) { set_hash_not_null(db_data.connection) })
 }
 
-fn create_hash_column(connection: pog.Connection) {
+fn create_hash_column(
+  connection: pog.Connection,
+) -> Result(Nil, types.MigrateError) {
   pog.query(add_hash_column_migration)
-  |> database.execute(connection)
+  |> pog.execute(connection)
+  |> result.map_error(types.PGOQueryError)
   |> result.map(fn(_) { io.println("Sha256 column created") })
 }
 
-fn set_hash_not_null(connection: pog.Connection) {
+fn set_hash_not_null(
+  connection: pog.Connection,
+) -> Result(Nil, types.MigrateError) {
   pog.query(drop_hash_default_migration)
-  |> database.execute(connection)
+  |> pog.execute(connection)
+  |> result.map_error(types.PGOQueryError)
   |> result.map(fn(_) { io.println("Sha256 column default dropped") })
 }
 
@@ -68,10 +79,10 @@ fn set_hash(
   connection: pog.Connection,
 ) -> Result(Nil, types.MigrateError) {
   use <- bool.guard(applied_mig.sha256 != "", Ok(Nil))
-  use <- bool.guard(migrations.is_zero_migration(applied_mig), Ok(Nil))
+  use <- bool.guard(migrations_utils.is_zero_migration(applied_mig), Ok(Nil))
 
-  migrations.find_migration(files, applied_mig)
-  |> result.then(fn(file) {
+  migrations_utils.find_migration(files, applied_mig)
+  |> result.try(fn(file) {
     set_hash_migration
     |> pog.query()
     |> pog.parameter(pog.text(file.sha256))
@@ -79,22 +90,31 @@ fn set_hash(
     |> pog.parameter(pog.timestamp(
       file.timestamp |> utils.tempo_to_pog_timestamp,
     ))
-    |> database.execute(connection)
+    |> pog.execute(connection)
+    |> result.map_error(types.PGOQueryError)
     |> result.map(fn(_) {
       io.println(
         "Hash set for migration "
-        <> fs.to_migration_filename(applied_mig.timestamp, applied_mig.name),
+        <> migrations_utils.to_migration_filename(
+          applied_mig.timestamp,
+          applied_mig.name,
+        ),
       )
     })
   })
 }
 
 pub fn main() {
-  use url <- result.try(database.get_url())
-  use db_conn <- result.try(database.connect(url))
-  io.println("Connected to database at URL " <> url)
+  use db_data <- result.try(database.init(
+    types.EnvVarConfig,
+    "public",
+    "_migrations",
+  ))
+  io.println(
+    "Connected to database at URL " <> db_data.db_url |> option.unwrap("None"),
+  )
 
-  case to_v3(db_conn) {
+  case to_v3(db_data) {
     Ok(_) -> io.println("Good to go !")
     Error(err) -> types.print_migrate_error(err)
   }

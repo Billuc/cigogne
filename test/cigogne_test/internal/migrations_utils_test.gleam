@@ -1,7 +1,8 @@
-import cigogne/internal/migrations
+import cigogne/internal/migrations_utils
 import cigogne/internal/utils
 import cigogne/types
 import gleam/list
+import gleam/string
 import gleeunit/should
 import tempo/datetime
 import tempo/instant
@@ -26,7 +27,7 @@ pub fn find_migration_test() {
       "",
     ),
   ]
-  |> migrations.find_migration(types.Migration(
+  |> migrations_utils.find_migration(types.Migration(
     "",
     naive_datetime.literal("2024-12-17 21:02:02"),
     "Test2",
@@ -64,7 +65,7 @@ pub fn migration_not_found_if_wrong_timestamp_test() {
       "",
     ),
   ]
-  |> migrations.find_migration(types.Migration(
+  |> migrations_utils.find_migration(types.Migration(
     "",
     naive_datetime.literal("2024-12-17 21:03:03"),
     "Test2",
@@ -98,7 +99,7 @@ pub fn migration_not_found_if_wrong_name_test() {
       "",
     ),
   ]
-  |> migrations.find_migration(types.Migration(
+  |> migrations_utils.find_migration(types.Migration(
     "",
     naive_datetime.literal("2024-12-17 21:02:02"),
     "WRONG",
@@ -148,7 +149,7 @@ pub fn compare_migrations_compares_by_timestamp_then_by_name_test() {
       "",
     ),
   ]
-  |> list.sort(migrations.compare_migrations)
+  |> list.sort(migrations_utils.compare_migrations)
   |> should.equal([
     types.Migration(
       "",
@@ -223,7 +224,10 @@ pub fn find_first_non_applied_migration_all_applied_test() {
     ),
   ]
 
-  migrations.find_first_non_applied_migration(migrations, applied_migrations)
+  migrations_utils.find_first_non_applied_migration(
+    migrations,
+    applied_migrations,
+  )
   |> should.be_error
   |> should.equal(types.NoMigrationToApplyError)
 }
@@ -274,7 +278,10 @@ pub fn test_find_first_non_applied_migration_is_last() {
     ),
   ]
 
-  migrations.find_first_non_applied_migration(migrations, applied_migrations)
+  migrations_utils.find_first_non_applied_migration(
+    migrations,
+    applied_migrations,
+  )
   |> should.be_ok
   |> should.equal(types.Migration(
     "",
@@ -332,7 +339,10 @@ pub fn find_first_non_applied_migration_is_not_last_test() {
     ),
   ]
 
-  migrations.find_first_non_applied_migration(migrations, applied_migrations)
+  migrations_utils.find_first_non_applied_migration(
+    migrations,
+    applied_migrations,
+  )
   |> should.be_ok
   |> should.equal(types.Migration(
     "",
@@ -398,7 +408,10 @@ pub fn find_first_non_applied_migration_skips_removed_migration_test() {
     ),
   ]
 
-  migrations.find_first_non_applied_migration(migrations, applied_migrations)
+  migrations_utils.find_first_non_applied_migration(
+    migrations,
+    applied_migrations,
+  )
   |> should.be_ok
   |> should.equal(types.Migration(
     "",
@@ -464,7 +477,10 @@ pub fn find_all_non_applied_migration_test() {
     ),
   ]
 
-  migrations.find_all_non_applied_migration(migrations, applied_migrations)
+  migrations_utils.find_all_non_applied_migration(
+    migrations,
+    applied_migrations,
+  )
   |> should.be_ok
   |> should.equal([
     types.Migration(
@@ -532,7 +548,7 @@ pub fn find_n_to_apply_positive_test() {
     ),
   ]
 
-  migrations.find_n_migrations_to_apply(migrations, applied_migrations, 2)
+  migrations_utils.find_n_migrations_to_apply(migrations, applied_migrations, 2)
   |> should.be_ok
   |> should.equal([
     types.Migration(
@@ -616,7 +632,11 @@ pub fn find_n_migrations_to_apply_negative_test() {
     ),
   ]
 
-  migrations.find_n_migrations_to_apply(migrations, applied_migrations, -2)
+  migrations_utils.find_n_migrations_to_apply(
+    migrations,
+    applied_migrations,
+    -2,
+  )
   |> should.be_ok
   |> should.equal([
     types.Migration(
@@ -640,7 +660,7 @@ pub fn find_n_migrations_to_apply_negative_test() {
 
 pub fn is_zero_migration_test() {
   types.Migration("", utils.tempo_epoch(), "", [], [], "")
-  |> migrations.is_zero_migration()
+  |> migrations_utils.is_zero_migration()
   |> should.be_true()
 }
 
@@ -653,7 +673,7 @@ pub fn is_not_zero_migration_test() {
     ["DROP TABLE test;"],
     "fde7050fe128b1ccf71703ab7463748a481fc1d347ab17ea3eaee56f4a2cd96f",
   )
-  |> migrations.is_zero_migration()
+  |> migrations_utils.is_zero_migration()
   |> should.be_false
 
   types.Migration(
@@ -666,6 +686,58 @@ pub fn is_not_zero_migration_test() {
     ["DROP TABLE test;"],
     "fde7050fe128b1ccf71703ab7463748a481fc1d347ab17ea3eaee56f4a2cd96f",
   )
-  |> migrations.is_zero_migration()
+  |> migrations_utils.is_zero_migration()
   |> should.be_false
+}
+
+pub fn create_zero_migration_test() {
+  let name = "ZeroMigration"
+  let queries_up = ["CREATE TABLE zero_migration();"]
+  let queries_down = ["DROP TABLE zero_migration;"]
+
+  let zero_mig =
+    migrations_utils.create_zero_migration(name, queries_up, queries_down)
+
+  assert zero_mig.path == ""
+  assert zero_mig.name == name
+  assert zero_mig.queries_up == queries_up
+  assert zero_mig.queries_down == queries_down
+  assert string.uppercase(zero_mig.sha256)
+    == "FAE7D5FFD35013EB3CE95190A3AD407CF07D0F6F161607E29599A1597EA2891A"
+}
+
+pub fn to_migration_filename_test() {
+  let timestamp = naive_datetime.literal("2024-12-17 20:56:56")
+  let name = "MigrationTest"
+
+  assert migrations_utils.to_migration_filename(timestamp, name)
+    == "20241217205656-MigrationTest.sql"
+}
+
+pub fn check_name_valid_test() {
+  let name = "ValidMigrationName"
+  let assert Ok(validated_name) = migrations_utils.check_name(name)
+  assert validated_name == name
+}
+
+pub fn check_name_too_long_test() {
+  let name = string.repeat("a", 256)
+  let assert Error(err) = migrations_utils.check_name(name)
+  assert err == types.NameTooLongError(name)
+}
+
+pub fn format_migration_name_test() {
+  let migration =
+    types.Migration(
+      "test_path",
+      naive_datetime.literal("2025-07-18 11:22:33"),
+      "ToFormat",
+      [],
+      [],
+      "sha256hash",
+    )
+
+  let formatted_name = migrations_utils.format_migration_name(migration)
+
+  assert formatted_name == "20250718112233-ToFormat"
 }
