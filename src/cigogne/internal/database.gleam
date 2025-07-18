@@ -7,6 +7,7 @@ import gleam/erlang/process
 import gleam/list
 import gleam/option
 import gleam/result
+import gleam/time/timestamp
 import pog
 import shellout
 
@@ -231,7 +232,7 @@ pub fn get_applied_migrations(
 }
 
 fn build_migration_data(
-  data: #(pog.Timestamp, String, String),
+  data: #(timestamp.Timestamp, String, String),
 ) -> Result(types.Migration, types.MigrateError) {
   case utils.pog_to_tempo_timestamp(data.0) {
     Error(_) ->
