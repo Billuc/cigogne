@@ -6,7 +6,6 @@ import gleam/dynamic/decode
 import gleam/list
 import gleam/option
 import gleam/result
-import gleam/string
 import pog
 import shellout
 
@@ -16,19 +15,39 @@ const check_table_exist = "SELECT table_name, table_schema
       AND table_name = $1
       AND table_schema = $2;"
 
-const create_migrations_table = "CREATE TABLE IF NOT EXISTS $1(
+fn create_migrations_table(schema: String, migrations_table: String) -> String {
+  "CREATE TABLE IF NOT EXISTS " <> schema <> "." <> migrations_table <> "(
     id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     name VARCHAR(255) NOT NULL,
     sha256 VARCHAR(64) NOT NULL,
     createdAt TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     appliedAt TIMESTAMP NOT NULL DEFAULT NOW()
 );"
+}
 
-const query_insert_migration = "INSERT INTO $1(createdAt, name, sha256) VALUES ($2, $3, $4);"
+fn query_insert_migration(schema: String, migrations_table: String) -> String {
+  "INSERT INTO "
+  <> schema
+  <> "."
+  <> migrations_table
+  <> "(createdAt, name, sha256) VALUES ($1, $2, $3);"
+}
 
-const query_drop_migration = "DELETE FROM $1 WHERE name = $2 AND createdAt = $3;"
+fn query_drop_migration(schema: String, migrations_table: String) -> String {
+  "DELETE FROM "
+  <> schema
+  <> "."
+  <> migrations_table
+  <> " WHERE name = $1 AND createdAt = $2;"
+}
 
-const query_applied_migrations = "SELECT createdAt, name, sha256 FROM $1 ORDER BY appliedAt ASC;"
+fn query_applied_migrations(schema: String, migrations_table: String) -> String {
+  "SELECT createdAt, name, sha256 FROM "
+  <> schema
+  <> "."
+  <> migrations_table
+  <> " ORDER BY appliedAt ASC;"
+}
 
 pub type DatabaseData {
   DatabaseData(
@@ -56,7 +75,7 @@ fn connect(
     types.EnvVarConfig -> {
       envoy.get("DATABASE_URL")
       |> result.replace_error(types.EnvVarError("DATABASE_URL"))
-      |> result.then(fn(url) {
+      |> result.try(fn(url) {
         pog.url_config(url)
         |> result.replace_error(types.UrlError(url))
         |> result.map(fn(c) { #(pog.connect(c), option.Some(url)) })
@@ -101,10 +120,7 @@ pub fn apply_cigogne_zero(data: DatabaseData) -> Result(Nil, types.MigrateError)
     Ok(False) -> {
       migrations_utils.create_zero_migration(
         "CreateMigrationTable",
-        [
-          create_migrations_table
-          |> string.replace("$1", data.migrations_table_name),
-        ],
+        [create_migrations_table(data.schema, data.migrations_table_name)],
         [],
       )
       |> apply_migration(data, _)
@@ -122,7 +138,7 @@ pub fn apply_migration(
     list.try_each(migration.queries_up, fn(q) {
       pog.query(q) |> pog.execute(transaction)
     })
-    |> result.then(fn(_) {
+    |> result.try(fn(_) {
       insert_migration_query(data, migration)
       |> pog.execute(transaction)
       |> result.replace(Nil)
@@ -142,7 +158,7 @@ pub fn rollback_migration(
     list.try_each(migration.queries_down, fn(q) {
       pog.query(q) |> pog.execute(transaction)
     })
-    |> result.then(fn(_) {
+    |> result.try(fn(_) {
       drop_migration_query(data, migration)
       |> pog.execute(transaction)
       |> result.replace(Nil)
@@ -156,8 +172,8 @@ fn insert_migration_query(
   data: DatabaseData,
   migration: types.Migration,
 ) -> pog.Query(Nil) {
-  pog.query(query_insert_migration)
-  |> pog.parameter(pog.text(data.migrations_table_name))
+  query_insert_migration(data.schema, data.migrations_table_name)
+  |> pog.query()
   |> pog.parameter(pog.timestamp(
     migration.timestamp |> utils.tempo_to_pog_timestamp,
   ))
@@ -169,8 +185,8 @@ fn drop_migration_query(
   data: DatabaseData,
   migration: types.Migration,
 ) -> pog.Query(Nil) {
-  pog.query(query_drop_migration)
-  |> pog.parameter(pog.text(data.migrations_table_name))
+  query_drop_migration(data.schema, data.migrations_table_name)
+  |> pog.query()
   |> pog.parameter(pog.text(migration.name))
   |> pog.parameter(pog.timestamp(
     migration.timestamp |> utils.tempo_to_pog_timestamp,
@@ -180,8 +196,8 @@ fn drop_migration_query(
 pub fn get_applied_migrations(
   data: DatabaseData,
 ) -> Result(List(types.Migration), types.MigrateError) {
-  pog.query(query_applied_migrations)
-  |> pog.parameter(pog.text(data.migrations_table_name))
+  query_applied_migrations(data.schema, data.migrations_table_name)
+  |> pog.query()
   |> pog.returning({
     use timestamp <- decode.field(0, pog.timestamp_decoder())
     use name <- decode.field(1, decode.string)
@@ -190,7 +206,7 @@ pub fn get_applied_migrations(
   })
   |> pog.execute(data.connection)
   |> result.map_error(types.PGOQueryError)
-  |> result.then(fn(returned) {
+  |> result.try(fn(returned) {
     case returned.rows {
       [] -> Error(types.NoResultError)
       _ as applied -> applied |> list.try_map(build_migration_data)

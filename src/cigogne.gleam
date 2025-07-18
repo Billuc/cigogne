@@ -40,21 +40,21 @@ pub fn main() {
           ["show"] -> show(engine)
           ["up"] ->
             apply_next_migration(engine)
-            |> result.then(fn(_) { update_schema(engine) })
+            |> result.try(fn(_) { update_schema(engine) })
           ["down"] ->
             roll_back_previous_migration(engine)
-            |> result.then(fn(_) { update_schema(engine) })
+            |> result.try(fn(_) { update_schema(engine) })
 
           ["last"] ->
             execute_migrations_to_last(engine)
-            |> result.then(fn(_) { update_schema(engine) })
+            |> result.try(fn(_) { update_schema(engine) })
 
           ["apply", x] ->
             case int.parse(x) {
               Error(_) -> show_usage()
               Ok(mig) ->
                 execute_n_migrations(engine, mig)
-                |> result.then(fn(_) { update_schema(engine) })
+                |> result.try(fn(_) { update_schema(engine) })
             }
           _ -> show_usage()
         }
@@ -92,7 +92,7 @@ fn show_usage() -> Result(Nil, types.MigrateError) {
 /// looks for migrations in 'priv/migrations/*.sql' files and generates a schema file in the sql.schema file
 pub const default_config = types.Config(
   connection: types.EnvVarConfig,
-  database_schema_to_use: "default",
+  database_schema_to_use: "public",
   migration_table_name: "_migrations",
   schema_config: types.SchemaConfig(generate: True, filename: "./sql.schema"),
   migration_folder: "priv/migrations",
@@ -174,7 +174,7 @@ pub fn execute_n_migrations(
     engine.applied,
     count,
   )
-  |> result.then(fn(migrations) {
+  |> result.try(fn(migrations) {
     case count > 0 {
       True -> migrations |> list.try_each(apply_migration(engine, _))
       False -> migrations |> list.try_each(roll_back_migration(engine, _))
@@ -187,7 +187,7 @@ pub fn execute_migrations_to_last(
   engine: MigrationEngine,
 ) -> Result(Nil, types.MigrateError) {
   migrations_utils.find_all_non_applied_migration(engine.files, engine.applied)
-  |> result.then(list.try_each(_, apply_migration(engine, _)))
+  |> result.try(list.try_each(_, apply_migration(engine, _)))
 }
 
 /// Apply a migration to the database.
@@ -257,7 +257,7 @@ fn get_last_applied_migration(
   engine.applied
   |> list.last
   |> result.replace_error(types.NoMigrationToRollbackError)
-  |> result.then(fn(mig) {
+  |> result.try(fn(mig) {
     use <- bool.guard(is_zero_migration(mig), Ok(mig))
     migrations_utils.find_migration(engine.files, mig)
   })
@@ -311,11 +311,6 @@ fn verify_applied_migration_hashes(
   }
 }
 
-/// Checks if a migration is a zero migration (has been created with create_zero_migration)
-pub fn is_zero_migration(migration: types.Migration) -> Bool {
-  migrations_utils.is_zero_migration(migration)
-}
-
 /// Apply a migration to the database if it hasn't been applied.
 pub fn apply_migration_if_not_applied(
   engine: MigrationEngine,
@@ -326,4 +321,18 @@ pub fn apply_migration_if_not_applied(
     Ok(Nil),
   )
   apply_migration(engine, migration)
+}
+
+/// Checks if a migration is a zero migration (has been created with create_zero_migration)
+pub fn is_zero_migration(migration: types.Migration) -> Bool {
+  migrations_utils.is_zero_migration(migration)
+}
+
+/// Create a "zero" migration that should be applied before the user's migrations
+pub fn create_zero_migration(
+  name: String,
+  queries_up: List(String),
+  queries_down: List(String),
+) -> types.Migration {
+  migrations_utils.create_zero_migration(name, queries_up, queries_down)
 }

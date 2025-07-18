@@ -26,7 +26,7 @@ pub fn parse_file_name(
     string.split(path, "/")
     |> list.last
     |> result.map(string.drop_end(_, 4))
-    |> result.then(string.split_once(_, "-"))
+    |> result.try(string.split_once(_, "-"))
     |> result.replace_error(types.FileNameError(path)),
   )
 
@@ -45,21 +45,21 @@ pub fn parse_migration_file(
   case string.split_once(content, migration_up_guard) {
     Error(_) ->
       Error("File badly formatted: '" <> migration_up_guard <> "' not found !")
-    Ok(#(up, rest)) -> {
-      case string.split_once(rest, migration_down_guard) {
+    Ok(#(_, up_and_rest)) -> {
+      case string.split_once(up_and_rest, migration_down_guard) {
         Error(_) ->
           Error(
             "File badly formatted: '" <> migration_down_guard <> "' not found !",
           )
-        Ok(#(down, rest)) -> {
-          case string.split_once(rest, migration_end_guard) {
+        Ok(#(up, down_and_rest)) -> {
+          case string.split_once(down_and_rest, migration_end_guard) {
             Error(_) ->
               Error(
                 "File badly formatted: '"
                 <> migration_end_guard
                 <> "' not found !",
               )
-            Ok(_) -> {
+            Ok(#(down, _rest)) -> {
               use queries_up <- result.try(split_queries(up))
               use queries_down <- result.try(split_queries(down))
 

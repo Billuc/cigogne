@@ -7,8 +7,12 @@ import gleam/option
 import gleam/result
 import pog
 
-/// This assumes that we have a database at postgres://billuc@localhost:5432/cigogne_test
-const db_url = "postgres://billuc@localhost:5432/cigogne_test"
+/// This assumes that we have a database at localhost:5432 that we can connect to without password
+const db_user = "lbillaud"
+
+const db_database = "cigogne_test"
+
+const db_url = "postgres://" <> db_user <> "@localhost:5432/" <> db_database
 
 const schema = "test"
 
@@ -45,8 +49,8 @@ pub fn init_with_pog_config_test() {
         pog.default_config()
         |> pog.host("localhost")
         |> pog.port(5432)
-        |> pog.user("billuc")
-        |> pog.database("cigogne_test"),
+        |> pog.user(db_user)
+        |> pog.database(db_database),
       ),
       schema,
       migration_table,
@@ -107,14 +111,14 @@ pub fn apply_get_rollback_migrations_test() {
 
   let applied_res =
     database.apply_migration(db, mig_1)
-    |> result.then(fn(_) { database.apply_migration(db, mig_2) })
-    |> result.then(fn(_) { database.get_applied_migrations(db) })
+    |> result.try(fn(_) { database.apply_migration(db, mig_2) })
+    |> result.try(fn(_) { database.get_applied_migrations(db) })
 
   let assert Ok(applied) = applied_res
 
   let rb_res =
     database.rollback_migration(db, mig_2)
-    |> result.then(fn(_) { database.rollback_migration(db, mig_1) })
+    |> result.try(fn(_) { database.rollback_migration(db, mig_1) })
 
   let assert Ok(_) = rb_res
 
