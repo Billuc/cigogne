@@ -1,26 +1,19 @@
 import cigogne/internal/migrations_utils
-import cigogne/internal/utils
 import cigogne/types
 import gleam/list
 import gleam/string
+import gleam/time/timestamp
 import gleeunit/should
-import tempo/datetime
-import tempo/instant
-import tempo/naive_datetime
 
 pub fn find_migration_test() {
+  let assert Ok(first_ts) = timestamp.parse_rfc3339("2024-12-17T21:01:01Z")
+  let assert Ok(second_ts) = timestamp.parse_rfc3339("2024-12-17T21:02:02Z")
+
   [
+    types.Migration("", first_ts, "Test1", ["up1.1", "up1.2"], ["down1.1"], ""),
     types.Migration(
       "",
-      naive_datetime.literal("2024-12-17 21:01:01"),
-      "Test1",
-      ["up1.1", "up1.2"],
-      ["down1.1"],
-      "",
-    ),
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-17 21:02:02"),
+      second_ts,
       "Test2",
       ["up2.1", "up2.2"],
       ["down2.1", "down2.2"],
@@ -29,7 +22,7 @@ pub fn find_migration_test() {
   ]
   |> migrations_utils.find_migration(types.Migration(
     "",
-    naive_datetime.literal("2024-12-17 21:02:02"),
+    second_ts,
     "Test2",
     [],
     [],
@@ -38,7 +31,7 @@ pub fn find_migration_test() {
   |> should.be_ok
   |> should.equal(types.Migration(
     "",
-    naive_datetime.literal("2024-12-17 21:02:02"),
+    second_ts,
     "Test2",
     ["up2.1", "up2.2"],
     ["down2.1", "down2.2"],
@@ -47,18 +40,15 @@ pub fn find_migration_test() {
 }
 
 pub fn migration_not_found_if_wrong_timestamp_test() {
+  let assert Ok(first_ts) = timestamp.parse_rfc3339("2024-12-17T21:01:01Z")
+  let assert Ok(second_ts) = timestamp.parse_rfc3339("2024-12-17T21:02:02Z")
+  let assert Ok(third_ts) = timestamp.parse_rfc3339("2024-12-17T21:03:03Z")
+
   [
+    types.Migration("", first_ts, "Test1", ["up1.1", "up1.2"], ["down1.1"], ""),
     types.Migration(
       "",
-      naive_datetime.literal("2024-12-17 21:01:01"),
-      "Test1",
-      ["up1.1", "up1.2"],
-      ["down1.1"],
-      "",
-    ),
-    types.Migration(
-      "",
-      naive_datetime.literal("2024-12-17 21:02:02"),
+      second_ts,
       "Test2",
       ["up2.1", "up2.2"],
       ["down2.1", "down2.2"],
@@ -67,17 +57,14 @@ pub fn migration_not_found_if_wrong_timestamp_test() {
   ]
   |> migrations_utils.find_migration(types.Migration(
     "",
-    naive_datetime.literal("2024-12-17 21:03:03"),
+    third_ts,
     "Test2",
     [],
     [],
     "",
   ))
   |> should.be_error
-  |> should.equal(types.MigrationNotFoundError(
-    naive_datetime.literal("2024-12-17 21:03:03"),
-    "Test2",
-  ))
+  |> should.equal(types.MigrationNotFoundError(third_ts, "Test2"))
 }
 
 pub fn migration_not_found_if_wrong_name_test() {

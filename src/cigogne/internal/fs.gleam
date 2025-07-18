@@ -4,10 +4,10 @@ import cigogne/internal/utils
 import cigogne/types
 import gleam/list
 import gleam/result
+import gleam/time/timestamp
 import globlin
 import globlin_fs
 import simplifile
-import tempo
 
 pub fn get_migrations(
   migrations_folder: String,
@@ -78,7 +78,7 @@ pub fn write_schema_file(
 
 pub fn create_new_migration_file(
   migrations_folder: String,
-  timestamp: tempo.NaiveDateTime,
+  timestamp: timestamp.Timestamp,
   name: String,
 ) -> Result(String, types.MigrateError) {
   use name <- result.try(migrations_utils.check_name(name))

@@ -2,9 +2,9 @@ import cigogne/internal/utils
 import gleam/io
 import gleam/list
 import gleam/otp/actor
+import gleam/time/calendar
+import gleam/time/timestamp
 import pog
-import tempo
-import tempo/naive_datetime
 
 /// The configuration linked to the database connection
 pub type ConnectionConfig {
@@ -51,9 +51,9 @@ pub type MigrateError {
   SchemaQueryError(error: String)
   NoMigrationToApplyError
   NoMigrationToRollbackError
-  MigrationNotFoundError(timestamp: tempo.NaiveDateTime, name: String)
+  MigrationNotFoundError(timestamp: timestamp.Timestamp, name: String)
   DateParseError(date: String)
-  FileHashChanged(migration_ts: tempo.NaiveDateTime, migration_name: String)
+  FileHashChanged(migration_ts: timestamp.Timestamp, migration_name: String)
   NameTooLongError(name: String)
   ActorStartError(error: actor.StartError)
 }
@@ -63,7 +63,7 @@ pub type MigrateError {
 pub type Migration {
   Migration(
     path: String,
-    timestamp: tempo.NaiveDateTime,
+    timestamp: timestamp.Timestamp,
     name: String,
     queries_up: List(String),
     queries_down: List(String),
@@ -114,7 +114,7 @@ pub fn print_migrate_error(error: MigrateError) -> Nil {
     MigrationNotFoundError(ts, name) ->
       io.println_error(
         "Migration not found [timestamp: "
-        <> ts |> naive_datetime.to_string
+        <> ts |> timestamp.to_rfc3339(calendar.utc_offset)
         <> ", name: "
         <> name
         <> "]",
@@ -124,7 +124,7 @@ pub fn print_migrate_error(error: MigrateError) -> Nil {
     FileHashChanged(migration_ts, migration_name) ->
       io.println_error(
         "File contents of migration have changed since last applied [timestamp: "
-        <> migration_ts |> naive_datetime.to_string
+        <> migration_ts |> timestamp.to_rfc3339(calendar.utc_offset)
         <> ", name: "
         <> migration_name
         <> "]",

@@ -1,30 +1,79 @@
 import cigogne/internal/utils
 import cigogne/types
 import gleam/bool
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/order
 import gleam/result
 import gleam/string
-import tempo
-import tempo/naive_datetime
-
-pub const timestamp_format = tempo.CustomNaive("YYYYMMDDHHmmss")
+import gleam/time/calendar
+import gleam/time/timestamp
 
 const max_name_length = 255
 
+pub fn format_migration_timestamp(timestamp: timestamp.Timestamp) -> String {
+  let #(date, time) = timestamp |> timestamp.to_calendar(calendar.utc_offset)
+
+  let date_str =
+    [date.year, date.month |> calendar.month_to_int, date.day]
+    |> list.map(int_to_2_chars_string)
+    |> string.join("")
+  let time_str =
+    [time.hours, time.minutes, time.seconds]
+    |> list.map(int_to_2_chars_string)
+    |> string.join("")
+
+  date_str <> time_str
+}
+
+fn int_to_2_chars_string(n: Int) -> String {
+  case n {
+    n if n < 10 -> "0" <> int.to_string(n)
+    _ -> int.to_string(n)
+  }
+}
+
+pub fn parse_migration_timestamp(
+  timestamp_str: String,
+) -> Result(timestamp.Timestamp, types.MigrateError) {
+  use <- bool.guard(
+    string.length(timestamp_str) == 14,
+    Error(types.DateParseError(timestamp_str)),
+  )
+
+  let year = string.slice(timestamp_str, 0, 4) |> int.parse
+  let month = string.slice(timestamp_str, 4, 6) |> int.parse
+  let day = string.slice(timestamp_str, 6, 8) |> int.parse
+  let hours = string.slice(timestamp_str, 8, 10) |> int.parse
+  let minutes = string.slice(timestamp_str, 10, 12) |> int.parse
+  let seconds = string.slice(timestamp_str, 12, 14) |> int.parse
+
+  case year, month, day, hours, minutes, seconds {
+    Ok(y), Ok(m), Ok(d), Ok(h), Ok(min), Ok(s) -> {
+      calendar.month_from_int(m)
+      |> result.replace_error(types.DateParseError(timestamp_str))
+      |> result.map(fn(m) {
+        timestamp.from_calendar(
+          calendar.Date(y, m, d),
+          calendar.TimeOfDay(h, min, s, 0),
+          calendar.utc_offset,
+        )
+      })
+    }
+    _, _, _, _, _, _ -> Error(types.DateParseError(timestamp_str))
+  }
+}
+
 pub fn format_migration_name(migration: types.Migration) -> String {
-  migration.timestamp
-  |> naive_datetime.format(timestamp_format)
-  <> "-"
-  <> migration.name
+  format_migration_timestamp(migration.timestamp) <> "-" <> migration.name
 }
 
 pub fn to_migration_filename(
-  timestamp: tempo.NaiveDateTime,
+  timestamp: timestamp.Timestamp,
   name: String,
 ) -> String {
-  timestamp |> naive_datetime.format(timestamp_format) <> "-" <> name <> ".sql"
+  format_migration_timestamp(timestamp) <> "-" <> name <> ".sql"
 }
 
 pub fn check_name(name: String) -> Result(String, types.MigrateError) {
@@ -40,9 +89,7 @@ pub fn find_migration(
   data: types.Migration,
 ) -> Result(types.Migration, types.MigrateError) {
   migrations
-  |> list.find(fn(m) {
-    naive_datetime.is_equal(m.timestamp, data.timestamp) && m.name == data.name
-  })
+  |> list.find(fn(m) { m.timestamp == data.timestamp && m.name == data.name })
   |> result.replace_error(types.MigrationNotFoundError(
     data.timestamp,
     data.name,
@@ -53,7 +100,7 @@ pub fn compare_migrations(
   migration_a: types.Migration,
   migration_b: types.Migration,
 ) -> order.Order {
-  naive_datetime.compare(migration_a.timestamp, migration_b.timestamp)
+  timestamp.compare(migration_a.timestamp, migration_b.timestamp)
   |> order.break_tie(string.compare(migration_a.name, migration_b.name))
 }
 
@@ -204,7 +251,7 @@ pub fn create_zero_migration(
 ) -> types.Migration {
   types.Migration(
     "",
-    utils.tempo_epoch(),
+    utils.epoch(),
     name,
     queries_up,
     queries_down,
@@ -216,6 +263,5 @@ pub fn create_zero_migration(
 
 /// Checks if a migration is a zero migration (has been created with create_zero_migration)
 pub fn is_zero_migration(migration: types.Migration) -> Bool {
-  { migration.path == "" }
-  |> bool.and(naive_datetime.is_equal(migration.timestamp, utils.tempo_epoch()))
+  migration.path == "" && migration.timestamp == utils.epoch()
 }
