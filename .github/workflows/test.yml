@@ -10,8 +10,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: postgres@17
+      ports:
+        - 5432
+      env:
+        POSTGRES_PASSWORD: 'mysecretpassword'
+        POSTGRES_USER: 'lbillaud'
+        POSTGRES_DB: 'cigogne_test'
     steps:
       - uses: actions/checkout@v4
+      - run: psql --host localhost --user lbillaud -f test/setup_test_db.sql cigogne_test
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "27.1.2"
