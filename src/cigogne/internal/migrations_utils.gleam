@@ -38,16 +38,16 @@ pub fn parse_migration_timestamp(
   timestamp_str: String,
 ) -> Result(timestamp.Timestamp, types.MigrateError) {
   use <- bool.guard(
-    string.length(timestamp_str) == 14,
+    string.length(timestamp_str) != 14,
     Error(types.DateParseError(timestamp_str)),
   )
 
   let year = string.slice(timestamp_str, 0, 4) |> int.parse
-  let month = string.slice(timestamp_str, 4, 6) |> int.parse
-  let day = string.slice(timestamp_str, 6, 8) |> int.parse
-  let hours = string.slice(timestamp_str, 8, 10) |> int.parse
-  let minutes = string.slice(timestamp_str, 10, 12) |> int.parse
-  let seconds = string.slice(timestamp_str, 12, 14) |> int.parse
+  let month = string.slice(timestamp_str, 4, 2) |> int.parse
+  let day = string.slice(timestamp_str, 6, 2) |> int.parse
+  let hours = string.slice(timestamp_str, 8, 2) |> int.parse
+  let minutes = string.slice(timestamp_str, 10, 2) |> int.parse
+  let seconds = string.slice(timestamp_str, 12, 2) |> int.parse
 
   case year, month, day, hours, minutes, seconds {
     Ok(y), Ok(m), Ok(d), Ok(h), Ok(min), Ok(s) -> {
