@@ -3,9 +3,11 @@ import cigogne/internal/utils
 import cigogne/types
 import envoy
 import gleam/dynamic/decode
+import gleam/erlang/process
 import gleam/list
 import gleam/option
 import gleam/result
+import gleam/time/timestamp
 import pog
 import shellout
 
@@ -76,18 +78,33 @@ fn connect(
       envoy.get("DATABASE_URL")
       |> result.replace_error(types.EnvVarError("DATABASE_URL"))
       |> result.try(fn(url) {
-        pog.url_config(url)
-        |> result.replace_error(types.UrlError(url))
-        |> result.map(fn(c) { #(pog.connect(c), option.Some(url)) })
+        connection_from_url(url)
+        |> result.map(fn(c) { #(c, option.Some(url)) })
       })
     }
-    types.PogConfig(config:) -> Ok(#(config |> pog.connect, option.None))
+    types.PogConfig(config:) ->
+      config
+      |> pog.start
+      |> result.map_error(types.ActorStartError)
+      |> result.map(fn(actor) { #(actor.data, option.None) })
     types.UrlConfig(url:) -> {
-      pog.url_config(url)
-      |> result.replace_error(types.UrlError(url))
-      |> result.map(fn(c) { #(pog.connect(c), option.Some(url)) })
+      connection_from_url(url)
+      |> result.map(fn(c) { #(c, option.Some(url)) })
     }
   }
+}
+
+fn connection_from_url(
+  url: String,
+) -> Result(pog.Connection, types.MigrateError) {
+  let db_process_name = process.new_name("cigogne")
+
+  pog.url_config(db_process_name, url)
+  |> result.replace_error(types.UrlError(url))
+  |> result.try(fn(c) {
+    pog.start(c) |> result.map_error(types.ActorStartError)
+  })
+  |> result.map(fn(actor) { actor.data })
 }
 
 pub fn migrations_table_exists(
@@ -215,7 +232,7 @@ pub fn get_applied_migrations(
 }
 
 fn build_migration_data(
-  data: #(pog.Timestamp, String, String),
+  data: #(timestamp.Timestamp, String, String),
 ) -> Result(types.Migration, types.MigrateError) {
   case utils.pog_to_tempo_timestamp(data.0) {
     Error(_) ->
