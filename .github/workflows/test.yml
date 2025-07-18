@@ -10,17 +10,23 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    container:
-      image: postgres:17-alpine
-      ports:
-        - 5432
-      env:
-        POSTGRES_PASSWORD: 'mysecretpassword'
-        POSTGRES_USER: 'lbillaud'
-        POSTGRES_DB: 'cigogne_test'
+    services:
+      postgres:
+        image: postgres:17-alpine
+        ports:
+          - 5432
+        env:
+          POSTGRES_PASSWORD: 'mysecretpassword'
+          POSTGRES_USER: 'lbillaud'
+          POSTGRES_DB: 'cigogne_test'
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - run: psql --host localhost --user lbillaud -f test/setup_test_db.sql cigogne_test
+      - run: psql --host postgres --user lbillaud -f test/setup_test_db.sql cigogne_test
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "27.1.2"

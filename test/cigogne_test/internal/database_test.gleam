@@ -12,7 +12,14 @@ const db_user = "lbillaud"
 
 const db_database = "cigogne_test"
 
-const db_url = "postgres://" <> db_user <> "@localhost:5432/" <> db_database
+const db_host = "postgres"
+
+const db_url = "postgres://"
+  <> db_user
+  <> "@"
+  <> db_host
+  <> ":5432/"
+  <> db_database
 
 const schema = "test"
 
