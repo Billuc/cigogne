@@ -191,9 +191,7 @@ fn insert_migration_query(
 ) -> pog.Query(Nil) {
   query_insert_migration(data.schema, data.migrations_table_name)
   |> pog.query()
-  |> pog.parameter(pog.timestamp(
-    migration.timestamp |> utils.tempo_to_pog_timestamp,
-  ))
+  |> pog.parameter(pog.timestamp(migration.timestamp))
   |> pog.parameter(pog.text(migration.name))
   |> pog.parameter(pog.text(migration.sha256))
 }
@@ -205,9 +203,7 @@ fn drop_migration_query(
   query_drop_migration(data.schema, data.migrations_table_name)
   |> pog.query()
   |> pog.parameter(pog.text(migration.name))
-  |> pog.parameter(pog.timestamp(
-    migration.timestamp |> utils.tempo_to_pog_timestamp,
-  ))
+  |> pog.parameter(pog.timestamp(migration.timestamp))
 }
 
 pub fn get_applied_migrations(
@@ -226,19 +222,15 @@ pub fn get_applied_migrations(
   |> result.try(fn(returned) {
     case returned.rows {
       [] -> Error(types.NoResultError)
-      _ as applied -> applied |> list.try_map(build_migration_data)
+      _ as applied -> applied |> list.map(build_migration_data) |> Ok
     }
   })
 }
 
 fn build_migration_data(
   data: #(timestamp.Timestamp, String, String),
-) -> Result(types.Migration, types.MigrateError) {
-  case utils.pog_to_tempo_timestamp(data.0) {
-    Error(_) ->
-      Error(types.DateParseError(utils.pog_timestamp_to_string(data.0)))
-    Ok(timestamp) -> Ok(types.Migration("", timestamp, data.1, [], [], data.2))
-  }
+) -> types.Migration {
+  types.Migration("", data.0, data.1, [], [], data.2)
 }
 
 pub fn get_schema(data: DatabaseData) -> Result(String, types.MigrateError) {

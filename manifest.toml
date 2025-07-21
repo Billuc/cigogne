@@ -16,7 +16,6 @@ packages = [
   { name = "gleeunit", version = "1.6.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "63022D81C12C17B7F1A60E029964E830A4CBD846BBC6740004FC1F1031AE0326" },
   { name = "globlin", version = "2.0.3", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib"], otp_app = "globlin", source = "hex", outer_checksum = "923BC16814DF95C4BB28111C266F0B873499480E6E125D5A16DBDF732E62CEB4" },
   { name = "globlin_fs", version = "2.0.0", build_tools = ["gleam"], requirements = ["filepath", "gleam_stdlib", "globlin", "simplifile"], otp_app = "globlin_fs", source = "hex", outer_checksum = "2A84CE81FD7958B967EF39CC234AFB64DAB20169D0EF9B9C3943CD3C5B561182" },
-  { name = "gtempo", version = "7.2.2", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "gleam_time"], otp_app = "gtempo", source = "hex", outer_checksum = "51AACF841C5F936455973BAF7C03F1EEBF86EC0F0F8D9EBEE126CB02968D50AC" },
   { name = "opentelemetry_api", version = "1.4.0", build_tools = ["rebar3", "mix"], requirements = [], otp_app = "opentelemetry_api", source = "hex", outer_checksum = "3DFBBFAA2C2ED3121C5C483162836C4F9027DEF469C41578AF5EF32589FCFC58" },
   { name = "pg_types", version = "0.5.0", build_tools = ["rebar3"], requirements = [], otp_app = "pg_types", source = "hex", outer_checksum = "A3023B464AA960BC1628635081E30CCA4F676F2D4C23CCD6179C1C11C9B4A642" },
   { name = "pgo", version = "0.15.0", build_tools = ["rebar3"], requirements = ["backoff", "opentelemetry_api", "pg_types"], otp_app = "pgo", source = "hex", outer_checksum = "4B883D751B8D4247F4D8A6FBAE58EDB6FA9DBC183371299BF84975EE36406388" },
@@ -36,7 +35,6 @@ gleam_time = { version = ">= 1.2.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.6.0 and < 2.0.0" }
 globlin = { version = ">= 2.0.3 and < 3.0.0" }
 globlin_fs = { version = ">= 2.0.0 and < 3.0.0" }
-gtempo = { version = ">= 7.2.2 and < 8.0.0" }
 pog = { version = ">= 4.0.0 and < 5.0.0" }
 shellout = { version = ">= 1.7.0 and < 2.0.0" }
 simplifile = { version = ">= 2.2.1 and < 3.0.0" }

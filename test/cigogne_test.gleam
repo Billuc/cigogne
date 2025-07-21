@@ -23,7 +23,7 @@ pub fn create_zero_migration_test() {
   migration
   |> should.equal(types.Migration(
     "",
-    utils.tempo_epoch(),
+    utils.epoch(),
     "test_zero",
     ["abc"],
     ["def"],

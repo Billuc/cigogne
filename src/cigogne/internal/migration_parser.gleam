@@ -5,8 +5,7 @@ import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
-import tempo
-import tempo/naive_datetime
+import gleam/time/timestamp
 
 pub const migration_up_guard = "--- migration:up"
 
@@ -16,7 +15,7 @@ pub const migration_end_guard = "--- migration:end"
 
 pub fn parse_file_name(
   path: String,
-) -> Result(#(tempo.NaiveDateTime, String), types.MigrateError) {
+) -> Result(#(timestamp.Timestamp, String), types.MigrateError) {
   use <- bool.guard(
     !string.ends_with(path, ".sql"),
     Error(types.FileNameError(path)),
@@ -30,10 +29,7 @@ pub fn parse_file_name(
     |> result.replace_error(types.FileNameError(path)),
   )
 
-  use ts <- result.try(
-    naive_datetime.parse(ts_and_name.0, migrations_utils.timestamp_format)
-    |> result.replace_error(types.DateParseError(ts_and_name.0)),
-  )
+  use ts <- result.try(migrations_utils.parse_migration_timestamp(ts_and_name.0))
   use name <- result.try(migrations_utils.check_name(ts_and_name.1))
 
   #(ts, name) |> Ok
