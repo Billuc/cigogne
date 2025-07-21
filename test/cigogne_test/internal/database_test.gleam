@@ -2,6 +2,7 @@ import cigogne/internal/database
 import cigogne/internal/migrations_utils
 import cigogne/types
 import envoy
+import gleam/erlang/process
 import gleam/list
 import gleam/option
 import gleam/result
@@ -55,10 +56,11 @@ pub fn init_with_url_test() {
 }
 
 pub fn init_with_pog_config_test() {
+  let name = process.new_name("cigogne_test")
   let init_res =
     database.init(
       types.PogConfig(
-        pog.default_config()
+        pog.default_config(name)
         |> pog.host("localhost")
         |> pog.port(5432)
         |> pog.user(db_user)
@@ -76,11 +78,12 @@ pub fn init_with_pog_config_test() {
 }
 
 pub fn init_with_connection_test() {
-  let assert Ok(conf) = pog.url_config(db_url())
-  let conn = pog.connect(conf)
+  let name = process.new_name("cigogne_test")
+  let assert Ok(conf) = pog.url_config(name, db_url())
+  let assert Ok(actor) = pog.start(conf)
 
   let init_res =
-    database.init(types.ConnectionConfig(conn), schema, migration_table)
+    database.init(types.ConnectionConfig(actor.data), schema, migration_table)
   let assert Ok(init_res) = init_res
 
   assert init_res.db_url == option.None

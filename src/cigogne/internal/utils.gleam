@@ -5,6 +5,8 @@ import gleam/int
 import gleam/list
 import gleam/result
 import gleam/string
+import gleam/time/calendar
+import gleam/time/timestamp
 import pog
 import tempo
 import tempo/date
@@ -32,7 +34,7 @@ pub fn describe_query_error(error: pog.QueryError) -> String {
   }
 }
 
-pub fn describe_transaction_error(error: pog.TransactionError) -> String {
+pub fn describe_transaction_error(error: pog.TransactionError(_)) -> String {
   case error {
     pog.TransactionQueryError(suberror) -> describe_query_error(suberror)
     pog.TransactionRolledBack(message) ->
@@ -50,37 +52,45 @@ pub fn describe_decode_error(error: decode.DecodeError) -> String {
   <> "]"
 }
 
-pub fn tempo_to_pog_timestamp(from: tempo.NaiveDateTime) -> pog.Timestamp {
-  let as_tuple = from |> naive_datetime.to_tuple
+pub fn tempo_to_pog_timestamp(from: tempo.NaiveDateTime) -> timestamp.Timestamp {
+  let #(#(year, month, day), #(hour, minutes, seconds)) =
+    from |> naive_datetime.to_tuple
 
-  pog.Timestamp(
-    pog.Date(as_tuple.0.0, as_tuple.0.1, as_tuple.0.2),
-    pog.Time(as_tuple.1.0, as_tuple.1.1, as_tuple.1.2, 0),
-  )
+  let assert Ok(month) = calendar.month_from_int(month)
+
+  let date = calendar.Date(year, month, day)
+  let time = calendar.TimeOfDay(hour, minutes, seconds, 0)
+
+  timestamp.from_calendar(date, time, calendar.utc_offset)
 }
 
 pub fn pog_to_tempo_timestamp(
-  from: pog.Timestamp,
+  from: timestamp.Timestamp,
 ) -> Result(tempo.NaiveDateTime, Nil) {
-  use date <- result.try(pog_to_tempo_date(from.date))
-  use time <- result.try(pog_to_tempo_time(from.time))
+  let #(date, time_of_day) = from |> timestamp.to_calendar(calendar.utc_offset)
+
+  use date <- result.try(pog_to_tempo_date(date))
+  use time <- result.try(pog_to_tempo_time(time_of_day))
   Ok(naive_datetime.new(date, time))
 }
 
-fn pog_to_tempo_date(from: pog.Date) -> Result(tempo.Date, Nil) {
-  date.new(from.year, from.month, from.day) |> result.replace_error(Nil)
+fn pog_to_tempo_date(from: calendar.Date) -> Result(tempo.Date, Nil) {
+  date.new(from.year, from.month |> calendar.month_to_int(), from.day)
+  |> result.replace_error(Nil)
 }
 
-fn pog_to_tempo_time(from: pog.Time) -> Result(tempo.Time, Nil) {
+fn pog_to_tempo_time(from: calendar.TimeOfDay) -> Result(tempo.Time, Nil) {
   time.new(from.hours, from.minutes, from.seconds) |> result.replace_error(Nil)
 }
 
-pub fn pog_timestamp_to_string(value: pog.Timestamp) -> String {
-  [value.date.year, value.date.month, value.date.day]
+pub fn pog_timestamp_to_string(value: timestamp.Timestamp) -> String {
+  let #(date, time_of_day) = value |> timestamp.to_calendar(calendar.utc_offset)
+
+  [date.year, date.month |> calendar.month_to_int(), date.day]
   |> list.map(int.to_string)
   |> string.join("-")
   <> " "
-  <> [value.time.hours, value.time.minutes, value.time.seconds]
+  <> [time_of_day.hours, time_of_day.minutes, time_of_day.seconds]
   |> list.map(fn(v: Int) {
     case v {
       v if v < 10 -> "0" <> int.to_string(v)
