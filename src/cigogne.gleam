@@ -1,3 +1,4 @@
+import argv
 import cigogne/internal/cli
 import cigogne/internal/database
 import cigogne/internal/fs
@@ -29,7 +30,8 @@ pub opaque type MigrationEngine {
 }
 
 pub fn main() {
-  use cli_action <- result.try(cli.get_action())
+  let args = argv.load().arguments
+  use cli_action <- result.try(cli.get_action(args))
 
   case cli_action {
     cli.NewMigration(folder:, name:) ->

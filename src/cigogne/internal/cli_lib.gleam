@@ -10,15 +10,15 @@ const default_bool = False
 
 const default_option = option.None
 
-pub opaque type Command(cmd_data) {
+pub type Command(cmd_data) {
   Command(name: String, description: String, actions: List(Action(cmd_data)))
 }
 
-pub opaque type Action(data) {
+pub type Action(data) {
   Action(action_path: List(String), help: String, decoder: ActionDecoder(data))
 }
 
-pub opaque type ActionDecoder(data) {
+pub type ActionDecoder(data) {
   ActionDecoder(
     default_value: data,
     flag_defs: List(Flag),
@@ -26,11 +26,11 @@ pub opaque type ActionDecoder(data) {
   )
 }
 
-pub opaque type Flag {
+pub type Flag {
   Flag(name: String, aliases: List(String), description: String, type_: String)
 }
 
-pub opaque type FlagDecoder(a) {
+pub type FlagDecoder(a) {
   FlagDecoder(
     default_value: a,
     decode_fn: fn(option.Option(List(String))) -> Result(a, String),
@@ -96,7 +96,7 @@ pub fn map_action(
 }
 
 pub fn flag(
-  name,
+  name: String,
   aliases: List(String),
   value_type: String,
   description: String,
@@ -408,7 +408,7 @@ fn print_errors(err: List(ParseError)) -> Nil {
   io.println_error("")
 }
 
-pub fn find_action(
+fn find_action(
   actions_to_try: List(Action(a)),
   args: List(String),
 ) -> Result(#(Action(a), List(String)), Nil) {
@@ -435,7 +435,7 @@ fn get_action_args(
   }
 }
 
-fn args_to_dict(args: List(String)) -> dict.Dict(String, List(String)) {
+pub fn args_to_dict(args: List(String)) -> dict.Dict(String, List(String)) {
   args_list_to_dict(args, dict.new())
 }
 

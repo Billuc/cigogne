@@ -1,4 +1,3 @@
-import argv
 import cigogne/internal/cli_lib
 import gleam/option
 
@@ -28,7 +27,7 @@ pub type ConfigOptions {
   )
 }
 
-pub fn get_action() {
+pub fn get_action(args: List(String)) {
   cli_lib.command("cigogne")
   |> cli_lib.with_description("Cigogne CLI")
   |> cli_lib.add_action(migrate_up_action())
@@ -36,7 +35,7 @@ pub fn get_action() {
   |> cli_lib.add_action(new_migration_action())
   |> cli_lib.add_action(show_migrations_action())
   |> cli_lib.add_action(migrate_to_last_action())
-  |> cli_lib.run(argv.load().arguments)
+  |> cli_lib.run(args)
 }
 
 fn migrate_up_action() -> cli_lib.Action(CliActions) {
