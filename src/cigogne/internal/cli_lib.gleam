@@ -286,14 +286,18 @@ fn print_help(command: Command(a)) -> Nil {
   |> box_text(80)
   |> io.println
 
-  io.println("\nAvailable actions:")
-  list.each(command.actions, fn(action) {
+  io.println("")
+  io.println("Usage: gleam run -m " <> command.name <> " <action> [<flags>]")
+  io.println("")
+  io.println("Available actions:")
+  list.each(command.actions |> list.reverse, fn(action) {
     let action_path = action.action_path |> string.join(" ")
     io.println("  " <> action_path <> " - " <> action.help)
   })
 
+  io.println("")
   io.println(
-    "\nUse `"
+    "Use `"
     <> command.name
     <> " help <action>` to get more information about an action.",
   )
@@ -304,7 +308,8 @@ fn print_help_action(action: Action(a)) -> Nil {
   |> box_text(80)
   |> io.println
 
-  io.println("\nAvaliable flags:")
+  io.println("")
+  io.println("Available flags:")
   list.each(action.decoder.flag_defs, fn(flag) {
     {
       justify_left(print_flag(flag.name) <> " " <> flag.type_, 20)
@@ -321,7 +326,7 @@ fn print_help_action(action: Action(a)) -> Nil {
 
 fn print_flag(flag_name: String) {
   case string.length(flag_name) {
-    0 -> "// Flag should not be empty"
+    0 -> "/!\\ Flag name should not be empty"
     1 -> "-" <> flag_name
     _ -> "--" <> flag_name
   }

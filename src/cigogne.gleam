@@ -1,4 +1,4 @@
-import argv
+import cigogne/internal/cli
 import cigogne/internal/database
 import cigogne/internal/fs
 import cigogne/internal/migrations_utils
@@ -7,6 +7,7 @@ import gleam/bool
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/option
 import gleam/result
 import tempo/datetime
 import tempo/instant
@@ -28,62 +29,91 @@ pub opaque type MigrationEngine {
 }
 
 pub fn main() {
-  {
-    let config = default_config
+  use cli_action <- result.try(cli.get_action())
 
-    case argv.load().arguments {
-      ["new", name] -> new_migration(config.migration_folder, name)
-      _ as args -> {
-        use engine <- result.try(create_migration_engine(config))
-
-        case args {
-          ["show"] -> show(engine)
-          ["up"] ->
-            apply_next_migration(engine)
-            |> result.try(fn(_) { update_schema(engine) })
-          ["down"] ->
-            roll_back_previous_migration(engine)
-            |> result.try(fn(_) { update_schema(engine) })
-
-          ["last"] ->
-            execute_migrations_to_last(engine)
-            |> result.try(fn(_) { update_schema(engine) })
-
-          ["apply", x] ->
-            case int.parse(x) {
-              Error(_) -> show_usage()
-              Ok(mig) ->
-                execute_n_migrations(engine, mig)
-                |> result.try(fn(_) { update_schema(engine) })
-            }
-          _ -> show_usage()
-        }
-      }
-    }
+  case cli_action {
+    cli.NewMigration(folder:, name:) ->
+      new_migration(
+        folder
+          |> option.unwrap(default_config.migration_folder),
+        name,
+      )
+    cli.ShowMigrations(options:) ->
+      cli_to_config(options)
+      |> create_migration_engine
+      |> result.try(show)
+    cli.MigrateUp(options:, count:) ->
+      cli_to_config(options)
+      |> create_migration_engine
+      |> result.try(execute_n_migrations(_, count))
+    cli.MigrateDown(options:, count:) ->
+      cli_to_config(options)
+      |> create_migration_engine
+      |> result.try(execute_n_migrations(_, -count))
+    cli.MigrateToLast(options:) ->
+      cli_to_config(options)
+      |> create_migration_engine
+      |> result.try(execute_migrations_to_last)
   }
   |> result.map_error(types.print_migrate_error)
 }
 
-fn show_usage() -> Result(Nil, types.MigrateError) {
-  io.println("=======================================")
-  io.println("=               CIGOGNE               =")
-  io.println("=======================================")
-  io.println("")
-  io.println("Usage: gleam run -m cigogne [command]")
-  io.println("")
-  io.println("List of commands:")
-  io.println(" - show:  Show the last currently applied migration")
-  io.println(" - up:    Migrate up one version / Apply one migration")
-  io.println(" - down:  Migrate down one version / Rollback one migration")
-  io.println(" - last:  Apply all migrations until the last one defined")
-  io.println(
-    " - apply N:  Apply or roll back N migrations (N can be positive or negative)",
-  )
-  io.println(
-    " - new NAME: Create a new migration file in priv/migrations with the specified name",
-  )
+fn cli_to_config(cli_config: cli.ConfigOptions) -> types.Config {
+  let connection = cli_to_connection_config(cli_config)
+  let database_schema_to_use =
+    cli_config.schema |> option.unwrap(default_config.database_schema_to_use)
+  let migration_table_name =
+    cli_config.migration_table
+    |> option.unwrap(default_config.migration_table_name)
+  let gen_schema = cli_config.gen_schema
+  let schema_filename =
+    cli_config.schema_filename
+    |> option.unwrap(default_config.schema_config.filename)
+  let schema_config = types.SchemaConfig(gen_schema, schema_filename)
+  let migration_folder =
+    cli_config.migration_folder
+    |> option.unwrap(default_config.migration_folder)
+  let migration_file_pattern =
+    cli_config.migration_pattern
+    |> option.unwrap(default_config.migration_file_pattern)
 
-  Ok(Nil)
+  types.Config(
+    connection:,
+    database_schema_to_use:,
+    migration_table_name:,
+    schema_config:,
+    migration_folder:,
+    migration_file_pattern:,
+  )
+}
+
+fn cli_to_connection_config(
+  cli_config: cli.ConfigOptions,
+) -> types.ConnectionConfig {
+  case cli_config.db_url {
+    option.Some(url) -> types.UrlConfig(url)
+    option.None -> {
+      let user = cli_config.db_user |> option.unwrap("postgres")
+      let password = cli_config.db_password |> option.unwrap("postgres")
+      let host = cli_config.db_host |> option.unwrap("localhost")
+      let port = cli_config.db_port |> option.unwrap(5432)
+      let db_name = cli_config.db_name |> option.unwrap("postgres")
+
+      let url =
+        "postgresql://"
+        <> user
+        <> ":"
+        <> password
+        <> "@"
+        <> host
+        <> ":"
+        <> int.to_string(port)
+        <> "/"
+        <> db_name
+
+      types.UrlConfig(url: url)
+    }
+  }
 }
 
 /// The default configuration you can use to get a MigrationEngine.
