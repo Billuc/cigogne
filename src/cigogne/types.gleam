@@ -30,7 +30,7 @@ pub type Config {
   )
 }
 
-/// The configuration linked to schema file generation
+/// The configuration related to schema file generation
 pub type SchemaConfig {
   SchemaConfig(generate: Bool, filename: String)
 }

@@ -18,7 +18,7 @@ type SchemaData {
 
 /// The MigrationEngine contains all the data required to apply and roll back migrations.
 /// Checks are run in order to make sure the database is in a correct state.
-/// When you have a MigrationEngine, you can be sure that your database is in a correct state to apply migrations.
+/// When you get a MigrationEngine, you can be sure that your database is in a correct state to apply migrations.
 pub opaque type MigrationEngine {
   MigrationEngine(
     db_data: database.DatabaseData,
@@ -41,20 +41,20 @@ pub fn main() {
       )
     cli.ShowMigrations(options:) ->
       cli_to_config(options)
-      |> create_migration_engine
+      |> create_engine
       |> result.try(show)
     cli.MigrateUp(options:, count:) ->
       cli_to_config(options)
-      |> create_migration_engine
-      |> result.try(execute_n_migrations(_, count))
+      |> create_engine
+      |> result.try(apply_n(_, count))
     cli.MigrateDown(options:, count:) ->
       cli_to_config(options)
-      |> create_migration_engine
-      |> result.try(execute_n_migrations(_, -count))
+      |> create_engine
+      |> result.try(rollback_n(_, count))
     cli.MigrateToLast(options:) ->
       cli_to_config(options)
-      |> create_migration_engine
-      |> result.try(execute_migrations_to_last)
+      |> create_engine
+      |> result.try(apply_to_last)
   }
   |> result.map_error(types.print_migrate_error)
 }
@@ -119,7 +119,7 @@ fn cli_to_connection_config(
 
 /// The default configuration you can use to get a MigrationEngine.
 /// This configuration uses the DATABASE_URL envvar to connect to the database,
-/// uses the 'default' schema, keeps migration data in the '_migrations' table
+/// uses the 'public' schema, keeps migration data in the '_migrations' table
 /// looks for migrations in 'priv/migrations/*.sql' files and generates a schema file in the sql.schema file
 pub const default_config = types.Config(
   connection: types.EnvVarConfig,
@@ -132,8 +132,8 @@ pub const default_config = types.Config(
 
 /// Creates a MigrationEngine from a configuration.
 /// This function will try to connect to the database, create the migrations table if it doesn't exist.
-/// Then it will fetch the applied migrations and the existing migration files and check hashes do match.
-pub fn create_migration_engine(
+/// Then it will fetch the applied migrations and the existing migration files and check that hashes do match.
+pub fn create_engine(
   config: types.Config,
 ) -> Result(MigrationEngine, types.MigrateError) {
   use db_data <- result.try(database.init(
@@ -175,9 +175,7 @@ pub fn new_migration(
 }
 
 /// Apply the next migration that wasn't applied yet.
-pub fn apply_next_migration(
-  engine: MigrationEngine,
-) -> Result(Nil, types.MigrateError) {
+pub fn apply(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
   use migration <- result.try(migrations_utils.find_first_non_applied_migration(
     engine.files,
     engine.applied,
@@ -186,35 +184,47 @@ pub fn apply_next_migration(
 }
 
 /// Roll back the last applied migration.
-pub fn roll_back_previous_migration(
-  engine: MigrationEngine,
-) -> Result(Nil, types.MigrateError) {
+pub fn rollback(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
   use last <- result.try(get_last_applied_migration(engine))
-  roll_back_migration(engine, last)
+  rollback_migration(engine, last)
 }
 
-/// Apply or roll back the next `count` migrations.
-pub fn execute_n_migrations(
+/// Apply the next `count` migrations.
+pub fn apply_n(
   engine: MigrationEngine,
   count: Int,
 ) -> Result(Nil, types.MigrateError) {
+  use <- bool.guard(count <= 0, Ok(Nil))
+
   migrations_utils.find_n_migrations_to_apply(
     engine.files,
     engine.applied,
     count,
   )
   |> result.try(fn(migrations) {
-    case count > 0 {
-      True -> migrations |> list.try_each(apply_migration(engine, _))
-      False -> migrations |> list.try_each(roll_back_migration(engine, _))
-    }
+    migrations |> list.try_each(apply_migration(engine, _))
+  })
+}
+
+/// Roll back `count` migrations.
+pub fn rollback_n(
+  engine: MigrationEngine,
+  count: Int,
+) -> Result(Nil, types.MigrateError) {
+  use <- bool.guard(count <= 0, Ok(Nil))
+
+  migrations_utils.find_n_migrations_to_rollback(
+    engine.files,
+    engine.applied,
+    count,
+  )
+  |> result.try(fn(migrations) {
+    migrations |> list.try_each(rollback_migration(engine, _))
   })
 }
 
 /// Apply migrations until we reach the last defined migration.
-pub fn execute_migrations_to_last(
-  engine: MigrationEngine,
-) -> Result(Nil, types.MigrateError) {
+pub fn apply_to_last(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
   migrations_utils.find_all_non_applied_migration(engine.files, engine.applied)
   |> result.try(list.try_each(_, apply_migration(engine, _)))
 }
@@ -238,7 +248,7 @@ pub fn apply_migration(
 }
 
 /// Roll back a migration from the database.
-pub fn roll_back_migration(
+pub fn rollback_migration(
   engine: MigrationEngine,
   migration: types.Migration,
 ) -> Result(Nil, types.MigrateError) {

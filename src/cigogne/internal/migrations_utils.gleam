@@ -175,20 +175,27 @@ pub fn find_n_migrations_to_apply(
   applied: List(types.Migration),
   count: Int,
 ) -> Result(List(types.Migration), types.MigrateError) {
-  case count {
-    n if n > 0 -> {
-      let sorted_migrations = list.sort(migrations, compare_migrations)
-      let sorted_applied = list.sort(applied, compare_migrations)
-      find_n_non_applied(sorted_migrations, sorted_applied, [], n)
-    }
-    n if n < 0 -> {
-      let sorted_migrations =
-        list.sort(migrations, order.reverse(compare_migrations))
-      let sorted_applied = list.sort(applied, order.reverse(compare_migrations))
-      find_n_to_rollback(sorted_migrations, sorted_applied, [], -n)
-    }
-    _ -> Ok([])
-  }
+  use <- bool.guard(count <= 0, Ok([]))
+
+  let sorted_migrations = list.sort(migrations, compare_migrations)
+  let sorted_applied = list.sort(applied, compare_migrations)
+
+  find_n_non_applied(sorted_migrations, sorted_applied, [], count)
+  |> result.map(list.reverse)
+}
+
+pub fn find_n_migrations_to_rollback(
+  migrations: List(types.Migration),
+  applied: List(types.Migration),
+  count: Int,
+) -> Result(List(types.Migration), types.MigrateError) {
+  use <- bool.guard(count <= 0, Ok([]))
+
+  let sorted_migrations =
+    list.sort(migrations, order.reverse(compare_migrations))
+  let sorted_applied = list.sort(applied, order.reverse(compare_migrations))
+
+  find_n_to_rollback(sorted_migrations, sorted_applied, [], count)
   |> result.map(list.reverse)
 }
 
