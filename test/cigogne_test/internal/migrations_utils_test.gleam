@@ -281,10 +281,64 @@ pub fn find_n_migrations_to_apply_negative_test() {
     -2,
   )
   |> should.be_ok
+  |> should.equal([])
+}
+
+pub fn find_n_migrations_to_rollback_test() {
+  let assert Ok(first_ts) = timestamp.parse_rfc3339("2024-12-17T21:01:01Z")
+  let assert Ok(second_ts) = timestamp.parse_rfc3339("2024-12-17T21:02:02Z")
+  let assert Ok(third_ts) = timestamp.parse_rfc3339("2024-12-17T21:03:03Z")
+  let assert Ok(fourth_ts) = timestamp.parse_rfc3339("2024-12-17T21:04:04Z")
+
+  let migrations = [
+    types.Migration("", first_ts, "Test1", [], [], ""),
+    types.Migration("", second_ts, "Test2", [], [], ""),
+    types.Migration("", third_ts, "Test3", [], [], ""),
+    types.Migration("", fourth_ts, "Test4", [], [], ""),
+  ]
+  let applied_migrations = [
+    types.Migration("", first_ts, "Test1", [], [], ""),
+    types.Migration("", second_ts, "Test2", [], [], ""),
+    types.Migration("", third_ts, "Test3", [], [], ""),
+  ]
+
+  migrations_utils.find_n_migrations_to_rollback(
+    migrations,
+    applied_migrations,
+    2,
+  )
+  |> should.be_ok
   |> should.equal([
     types.Migration("", third_ts, "Test3", [], [], ""),
     types.Migration("", second_ts, "Test2", [], [], ""),
   ])
+}
+
+pub fn find_n_migrations_to_rollback_negative_test() {
+  let assert Ok(first_ts) = timestamp.parse_rfc3339("2024-12-17T21:01:01Z")
+  let assert Ok(second_ts) = timestamp.parse_rfc3339("2024-12-17T21:02:02Z")
+  let assert Ok(third_ts) = timestamp.parse_rfc3339("2024-12-17T21:03:03Z")
+  let assert Ok(fourth_ts) = timestamp.parse_rfc3339("2024-12-17T21:04:04Z")
+
+  let migrations = [
+    types.Migration("", first_ts, "Test1", [], [], ""),
+    types.Migration("", second_ts, "Test2", [], [], ""),
+    types.Migration("", third_ts, "Test3", [], [], ""),
+    types.Migration("", fourth_ts, "Test4", [], [], ""),
+  ]
+  let applied_migrations = [
+    types.Migration("", first_ts, "Test1", [], [], ""),
+    types.Migration("", second_ts, "Test2", [], [], ""),
+    types.Migration("", third_ts, "Test3", [], [], ""),
+  ]
+
+  migrations_utils.find_n_migrations_to_rollback(
+    migrations,
+    applied_migrations,
+    -2,
+  )
+  |> should.be_ok
+  |> should.equal([])
 }
 
 pub fn is_zero_migration_test() {
