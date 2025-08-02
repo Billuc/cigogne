@@ -5,12 +5,13 @@ import cigogne/internal/fs
 import cigogne/internal/migrations_utils
 import cigogne/types
 import gleam/bool
-import gleam/int
+import gleam/erlang/process
 import gleam/io
 import gleam/list
 import gleam/option
 import gleam/result
 import gleam/time/timestamp
+import pog
 
 type SchemaData {
   SchemaData(generate: Bool, filename: String)
@@ -94,25 +95,34 @@ fn cli_to_connection_config(
   case cli_config.db_url {
     option.Some(url) -> types.UrlConfig(url)
     option.None -> {
-      let user = cli_config.db_user |> option.unwrap("postgres")
-      let password = cli_config.db_password |> option.unwrap("postgres")
-      let host = cli_config.db_host |> option.unwrap("localhost")
-      let port = cli_config.db_port |> option.unwrap(5432)
-      let db_name = cli_config.db_name |> option.unwrap("postgres")
+      case
+        cli_config.db_user,
+        cli_config.db_password,
+        cli_config.db_host,
+        cli_config.db_port,
+        cli_config.db_name
+      {
+        option.None, option.None, option.None, option.None, option.None ->
+          types.EnvVarConfig
+        _, _, _, _, _ -> {
+          let user = cli_config.db_user |> option.unwrap("postgres")
+          let password = cli_config.db_password
+          let host = cli_config.db_host |> option.unwrap("localhost")
+          let port = cli_config.db_port |> option.unwrap(5432)
+          let db_name = cli_config.db_name |> option.unwrap("postgres")
 
-      let url =
-        "postgresql://"
-        <> user
-        <> ":"
-        <> password
-        <> "@"
-        <> host
-        <> ":"
-        <> int.to_string(port)
-        <> "/"
-        <> db_name
+          let procname = process.new_name("cigogne-db")
+          let config =
+            pog.default_config(procname)
+            |> pog.user(user)
+            |> pog.password(password)
+            |> pog.host(host)
+            |> pog.port(port)
+            |> pog.database(db_name)
 
-      types.UrlConfig(url: url)
+          types.PogConfig(config)
+        }
+      }
     }
   }
 }
