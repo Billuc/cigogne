@@ -23,7 +23,6 @@ pub type ConfigOptions {
     schema_filename: option.Option(String),
     migration_folder: option.Option(String),
     migration_pattern: option.Option(String),
-    // Use envvar
   )
 }
 
