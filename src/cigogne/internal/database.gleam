@@ -54,27 +54,30 @@ fn query_applied_migrations(schema: String, migrations_table: String) -> String 
 pub type DatabaseData {
   DatabaseData(
     connection: pog.Connection,
-    migrations_table_name: String,
-    schema: String,
+    migrations_table: String,
+    db_schema: String,
     db_url: option.Option(String),
   )
 }
 
 pub fn init(
   config: types.ConnectionConfig,
-  schema: String,
-  migrations_table_name: String,
 ) -> Result(DatabaseData, types.MigrateError) {
-  use #(connection, db_url) <- result.try(connect(config))
-  Ok(DatabaseData(connection:, migrations_table_name:, schema:, db_url:))
+  use #(connection, db_url) <- result.try(connect(config.connection))
+  Ok(DatabaseData(
+    connection:,
+    migrations_table: config.migrations_table,
+    db_schema: config.db_schema,
+    db_url:,
+  ))
 }
 
 fn connect(
-  config: types.ConnectionConfig,
+  config: types.PogConnectionConfig,
 ) -> Result(#(pog.Connection, option.Option(String)), types.MigrateError) {
   case config {
-    types.ConnectionConfig(connection:) -> Ok(#(connection, option.None))
-    types.EnvVarConfig -> {
+    types.PogConnection(connection:) -> Ok(#(connection, option.None))
+    types.EnvVar -> {
       envoy.get("DATABASE_URL")
       |> result.replace_error(types.EnvVarError("DATABASE_URL"))
       |> result.try(fn(url) {
@@ -87,7 +90,7 @@ fn connect(
       |> pog.start
       |> result.map_error(types.ActorStartError)
       |> result.map(fn(actor) { #(actor.data, option.None) })
-    types.UrlConfig(url:) -> {
+    types.ConnectionString(url:) -> {
       connection_from_url(url)
       |> result.map(fn(c) { #(c, option.Some(url)) })
     }
@@ -112,8 +115,8 @@ pub fn migrations_table_exists(
 ) -> Result(Bool, types.MigrateError) {
   let tables_query =
     pog.query(check_table_exist)
-    |> pog.parameter(pog.text(data.migrations_table_name))
-    |> pog.parameter(pog.text(data.schema))
+    |> pog.parameter(pog.text(data.migrations_table))
+    |> pog.parameter(pog.text(data.db_schema))
     |> pog.returning({
       use name <- decode.field(0, decode.string)
       use schema <- decode.field(1, decode.string)
@@ -137,7 +140,7 @@ pub fn apply_cigogne_zero(data: DatabaseData) -> Result(Nil, types.MigrateError)
     Ok(False) -> {
       migrations_utils.create_zero_migration(
         "CreateMigrationTable",
-        [create_migrations_table(data.schema, data.migrations_table_name)],
+        [create_migrations_table(data.db_schema, data.migrations_table)],
         [],
       )
       |> apply_migration(data, _)
@@ -189,7 +192,7 @@ fn insert_migration_query(
   data: DatabaseData,
   migration: types.Migration,
 ) -> pog.Query(Nil) {
-  query_insert_migration(data.schema, data.migrations_table_name)
+  query_insert_migration(data.db_schema, data.migrations_table)
   |> pog.query()
   |> pog.parameter(pog.timestamp(migration.timestamp))
   |> pog.parameter(pog.text(migration.name))
@@ -200,7 +203,7 @@ fn drop_migration_query(
   data: DatabaseData,
   migration: types.Migration,
 ) -> pog.Query(Nil) {
-  query_drop_migration(data.schema, data.migrations_table_name)
+  query_drop_migration(data.db_schema, data.migrations_table)
   |> pog.query()
   |> pog.parameter(pog.text(migration.name))
   |> pog.parameter(pog.timestamp(migration.timestamp))
@@ -209,7 +212,7 @@ fn drop_migration_query(
 pub fn get_applied_migrations(
   data: DatabaseData,
 ) -> Result(List(types.Migration), types.MigrateError) {
-  query_applied_migrations(data.schema, data.migrations_table_name)
+  query_applied_migrations(data.db_schema, data.migrations_table)
   |> pog.query()
   |> pog.returning({
     use timestamp <- decode.field(0, pog.timestamp_decoder())
@@ -239,7 +242,7 @@ pub fn get_schema(data: DatabaseData) -> Result(String, types.MigrateError) {
     option.Some(url) ->
       shellout.command(
         "psql",
-        [url, "-c", "\\d " <> data.schema <> ".*"],
+        [url, "-c", "\\d " <> data.db_schema <> ".*"],
         ".",
         [],
       )

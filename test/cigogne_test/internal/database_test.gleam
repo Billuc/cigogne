@@ -33,32 +33,40 @@ fn db_url() {
 pub fn init_with_envvar_test() {
   envoy.set("DATABASE_URL", db_url())
 
-  let init_res = database.init(types.EnvVarConfig, schema, migration_table)
+  let conn_config =
+    types.ConnectionConfig(types.EnvVar, schema, migration_table)
+  let init_res = database.init(conn_config)
 
   envoy.unset("DATABASE_URL")
 
   let assert Ok(init_res) = init_res
 
   assert init_res.db_url == option.Some(db_url())
-  assert init_res.migrations_table_name == migration_table
-  assert init_res.schema == schema
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
 }
 
 pub fn init_with_url_test() {
-  let init_res =
-    database.init(types.UrlConfig(db_url()), schema, migration_table)
+  let conn_config =
+    types.ConnectionConfig(
+      types.ConnectionString(db_url()),
+      schema,
+      migration_table,
+    )
+  let init_res = database.init(conn_config)
 
   let assert Ok(init_res) = init_res
 
   assert init_res.db_url == option.Some(db_url())
-  assert init_res.migrations_table_name == migration_table
-  assert init_res.schema == schema
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
 }
 
 pub fn init_with_pog_config_test() {
   let name = process.new_name("cigogne_test")
-  let init_res =
-    database.init(
+
+  let conn_config =
+    types.ConnectionConfig(
       types.PogConfig(
         pog.default_config(name)
         |> pog.host("localhost")
@@ -69,12 +77,13 @@ pub fn init_with_pog_config_test() {
       schema,
       migration_table,
     )
+  let init_res = database.init(conn_config)
 
   let assert Ok(init_res) = init_res
 
   assert init_res.db_url == option.None
-  assert init_res.migrations_table_name == migration_table
-  assert init_res.schema == schema
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
 }
 
 pub fn init_with_connection_test() {
@@ -82,18 +91,28 @@ pub fn init_with_connection_test() {
   let assert Ok(conf) = pog.url_config(name, db_url())
   let assert Ok(actor) = pog.start(conf)
 
-  let init_res =
-    database.init(types.ConnectionConfig(actor.data), schema, migration_table)
+  let conn_config =
+    types.ConnectionConfig(
+      types.PogConnection(actor.data),
+      schema,
+      migration_table,
+    )
+  let init_res = database.init(conn_config)
   let assert Ok(init_res) = init_res
 
   assert init_res.db_url == option.None
-  assert init_res.migrations_table_name == migration_table
-  assert init_res.schema == schema
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
 }
 
 pub fn migration_table_exists_after_zero_test() {
-  let assert Ok(init_res) =
-    database.init(types.UrlConfig(db_url()), schema, migration_table)
+  let conn_config =
+    types.ConnectionConfig(
+      types.ConnectionString(db_url()),
+      schema,
+      migration_table,
+    )
+  let assert Ok(init_res) = database.init(conn_config)
 
   let assert Ok(_) =
     init_res
@@ -120,7 +139,11 @@ pub fn apply_get_rollback_migrations_test() {
     )
 
   let assert Ok(db) =
-    database.init(types.UrlConfig(db_url()), schema, migration_table)
+    database.init(types.ConnectionConfig(
+      types.ConnectionString(db_url()),
+      schema,
+      migration_table,
+    ))
 
   let assert Ok(_) = database.apply_cigogne_zero(db)
 

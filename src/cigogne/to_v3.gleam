@@ -42,10 +42,9 @@ pub fn to_v3(db_data: database.DatabaseData) -> Result(Nil, types.MigrateError) 
 
   use _ <- result.try(create_hash_column(db_data.connection))
 
-  use migration_files <- result.try(fs.get_migrations(
-    "priv/migrations",
-    "*.sql",
-  ))
+  use migration_files <- result.try(
+    fs.get_migrations(types.MigrationFileConfig("", "migrations")),
+  )
   use applied_migrations <- result.try(database.get_applied_migrations(db_data))
 
   applied_migrations
@@ -102,11 +101,9 @@ fn set_hash(
 }
 
 pub fn main() {
-  use db_data <- result.try(database.init(
-    types.EnvVarConfig,
-    "public",
-    "_migrations",
-  ))
+  let conn_config =
+    types.ConnectionConfig(types.EnvVar, "public", "_migrations")
+  use db_data <- result.try(database.init(conn_config))
   io.println(
     "Connected to database at URL " <> db_data.db_url |> option.unwrap("None"),
   )

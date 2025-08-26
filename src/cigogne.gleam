@@ -13,8 +13,18 @@ import gleam/result
 import gleam/time/timestamp
 import pog
 
-type SchemaData {
-  SchemaData(generate: Bool, filename: String)
+const default_db_schema = "public"
+
+const default_migrations_table = "_migrations"
+
+const default_migration_folder = "migrations"
+
+const default_dump_filename = "schema.sql"
+
+/// The DatabaseConnection is a preliminary step to creating a MigrationEngine.
+/// This object can be shared with libraries so that they can apply their migrations too.
+pub opaque type DatabaseConnection {
+  DatabaseConnection(db_data: database.DatabaseData)
 }
 
 /// The MigrationEngine contains all the data required to apply and roll back migrations.
@@ -23,9 +33,9 @@ type SchemaData {
 pub opaque type MigrationEngine {
   MigrationEngine(
     db_data: database.DatabaseData,
-    schema_data: SchemaData,
     applied: List(types.Migration),
     files: List(types.Migration),
+    dump_config: types.DumpFileConfig,
   )
 }
 
@@ -36,64 +46,73 @@ pub fn main() {
   case cli_action {
     cli.NewMigration(folder:, name:) ->
       new_migration(
-        folder
-          |> option.unwrap(default_config.migration_folder),
+        types.MigrationFileConfig(
+          "",
+          folder
+            |> option.unwrap(default_migration_folder),
+        ),
         name,
       )
-    cli.ShowMigrations(options:) ->
-      cli_to_config(options)
-      |> create_engine
+    cli.ShowMigrations(options:) -> {
+      let #(conn_config, migs_config, dump_config) = cli_to_config(options)
+      use db_conn <- result.try(init_connection(conn_config))
+
+      db_conn
+      |> create_engine(migs_config, dump_config)
       |> result.try(show)
-    cli.MigrateUp(options:, count:) ->
-      cli_to_config(options)
-      |> create_engine
+    }
+    cli.MigrateUp(options:, count:) -> {
+      let #(conn_config, migs_config, dump_config) = cli_to_config(options)
+      use db_conn <- result.try(init_connection(conn_config))
+
+      db_conn
+      |> create_engine(migs_config, dump_config)
       |> result.try(apply_n(_, count))
-    cli.MigrateDown(options:, count:) ->
-      cli_to_config(options)
-      |> create_engine
+    }
+    cli.MigrateDown(options:, count:) -> {
+      let #(conn_config, migs_config, dump_config) = cli_to_config(options)
+      use db_conn <- result.try(init_connection(conn_config))
+
+      db_conn
+      |> create_engine(migs_config, dump_config)
       |> result.try(rollback_n(_, count))
-    cli.MigrateToLast(options:) ->
-      cli_to_config(options)
-      |> create_engine
+    }
+    cli.MigrateToLast(options:) -> {
+      let #(conn_config, migs_config, dump_config) = cli_to_config(options)
+      use db_conn <- result.try(init_connection(conn_config))
+
+      db_conn
+      |> create_engine(migs_config, dump_config)
       |> result.try(apply_to_last)
+    }
   }
   |> result.map_error(types.print_migrate_error)
 }
 
-fn cli_to_config(cli_config: cli.ConfigOptions) -> types.Config {
-  let connection = cli_to_connection_config(cli_config)
-  let database_schema_to_use =
-    cli_config.schema |> option.unwrap(default_config.database_schema_to_use)
-  let migration_table_name =
-    cli_config.migration_table
-    |> option.unwrap(default_config.migration_table_name)
-  let gen_schema = cli_config.gen_schema
-  let schema_filename =
-    cli_config.schema_filename
-    |> option.unwrap(default_config.schema_config.filename)
-  let schema_config = types.SchemaConfig(gen_schema, schema_filename)
-  let migration_folder =
-    cli_config.migration_folder
-    |> option.unwrap(default_config.migration_folder)
-  let migration_file_pattern =
-    cli_config.migration_pattern
-    |> option.unwrap(default_config.migration_file_pattern)
+fn cli_to_config(
+  cli_config: cli.ConfigOptions,
+) -> #(types.ConnectionConfig, types.MigrationFilesConfig, types.DumpFileConfig) {
+  let connection = cli_to_conn_config(cli_config)
+  let migrations = cli_to_migration_files_config(cli_config)
+  let dumpfile = cli_to_dump_file_config(cli_config)
 
-  types.Config(
-    connection:,
-    database_schema_to_use:,
-    migration_table_name:,
-    schema_config:,
-    migration_folder:,
-    migration_file_pattern:,
+  #(connection, migrations, dumpfile)
+}
+
+fn cli_to_conn_config(cli_config: cli.ConfigOptions) -> types.ConnectionConfig {
+  types.ConnectionConfig(
+    connection: cli_to_pog_conn_config(cli_config),
+    db_schema: cli_config.schema |> option.unwrap(default_db_schema),
+    migrations_table: cli_config.migration_table
+      |> option.unwrap(default_migrations_table),
   )
 }
 
-fn cli_to_connection_config(
+fn cli_to_pog_conn_config(
   cli_config: cli.ConfigOptions,
-) -> types.ConnectionConfig {
+) -> types.PogConnectionConfig {
   case cli_config.db_url {
-    option.Some(url) -> types.UrlConfig(url)
+    option.Some(url) -> types.ConnectionString(url)
     option.None -> {
       case
         cli_config.db_user,
@@ -103,7 +122,7 @@ fn cli_to_connection_config(
         cli_config.db_name
       {
         option.None, option.None, option.None, option.None, option.None ->
-          types.EnvVarConfig
+          types.EnvVar
         _, _, _, _, _ -> {
           let user = cli_config.db_user |> option.unwrap("postgres")
           let password = cli_config.db_password
@@ -127,57 +146,114 @@ fn cli_to_connection_config(
   }
 }
 
-/// The default configuration you can use to get a MigrationEngine.
-/// This configuration uses the DATABASE_URL envvar to connect to the database,
-/// uses the 'public' schema, keeps migration data in the '_migrations' table
-/// looks for migrations in 'priv/migrations/*.sql' files and generates a schema file in the sql.schema file
-pub const default_config = types.Config(
-  connection: types.EnvVarConfig,
-  database_schema_to_use: "public",
-  migration_table_name: "_migrations",
-  schema_config: types.SchemaConfig(generate: True, filename: "./sql.schema"),
-  migration_folder: "priv/migrations",
-  migration_file_pattern: "*.sql",
-)
+fn cli_to_migration_files_config(
+  cli_config: cli.ConfigOptions,
+) -> types.MigrationFilesConfig {
+  let migration_folder =
+    cli_config.migration_folder
+    |> option.unwrap(default_migration_folder)
+
+  types.MigrationFileConfig(application_name: "", migration_folder:)
+}
+
+fn cli_to_dump_file_config(
+  cli_config: cli.ConfigOptions,
+) -> types.DumpFileConfig {
+  use <- bool.guard(!cli_config.gen_schema, types.NoDump)
+  let schema_filename =
+    cli_config.schema_filename
+    |> option.unwrap(default_dump_filename)
+  types.DumpSchema(schema_filename)
+}
+
+pub fn connection_config() -> types.ConnectionConfig {
+  types.ConnectionConfig(
+    connection: types.EnvVar,
+    db_schema: default_db_schema,
+    migrations_table: default_migrations_table,
+  )
+}
+
+pub fn with_connection_string(
+  config: types.ConnectionConfig,
+  connection_string: String,
+) -> types.ConnectionConfig {
+  types.ConnectionConfig(
+    ..config,
+    connection: types.ConnectionString(connection_string),
+  )
+}
+
+pub fn with_pog_config(
+  config: types.ConnectionConfig,
+  pog_config: pog.Config,
+) -> types.ConnectionConfig {
+  types.ConnectionConfig(..config, connection: types.PogConfig(pog_config))
+}
+
+pub fn with_pog_connection(
+  config: types.ConnectionConfig,
+  pog_conn: pog.Connection,
+) -> types.ConnectionConfig {
+  types.ConnectionConfig(..config, connection: types.PogConnection(pog_conn))
+}
+
+pub fn with_env_var(config: types.ConnectionConfig) -> types.ConnectionConfig {
+  types.ConnectionConfig(..config, connection: types.EnvVar)
+}
+
+pub fn with_db_schema(
+  config: types.ConnectionConfig,
+  db_schema: String,
+) -> types.ConnectionConfig {
+  types.ConnectionConfig(..config, db_schema:)
+}
+
+pub fn with_migrations_table(
+  config: types.ConnectionConfig,
+  migrations_table: String,
+) -> types.ConnectionConfig {
+  types.ConnectionConfig(..config, migrations_table:)
+}
+
+pub fn init_connection(
+  config: types.ConnectionConfig,
+) -> Result(DatabaseConnection, types.MigrateError) {
+  use db_data <- result.try(database.init(config))
+
+  use _ <- result.try(database.apply_cigogne_zero(db_data))
+  Ok(DatabaseConnection(db_data))
+}
 
 /// Creates a MigrationEngine from a configuration.
 /// This function will try to connect to the database, create the migrations table if it doesn't exist.
 /// Then it will fetch the applied migrations and the existing migration files and check that hashes do match.
 pub fn create_engine(
-  config: types.Config,
+  db_connection: DatabaseConnection,
+  migration_files_config: types.MigrationFilesConfig,
+  dump_file_config: types.DumpFileConfig,
 ) -> Result(MigrationEngine, types.MigrateError) {
-  use db_data <- result.try(database.init(
-    config.connection,
-    config.database_schema_to_use,
-    config.migration_table_name,
+  use applied <- result.try(database.get_applied_migrations(
+    db_connection.db_data,
   ))
-
-  use _ <- result.try(database.apply_cigogne_zero(db_data))
-  use applied <- result.try(database.get_applied_migrations(db_data))
-  use files <- result.try(fs.get_migrations(
-    config.migration_folder,
-    config.migration_file_pattern,
-  ))
+  use files <- result.try(fs.get_migrations(migration_files_config))
   use _ <- result.try(verify_applied_migration_hashes(applied, files))
 
   Ok(MigrationEngine(
-    db_data:,
-    schema_data: SchemaData(
-      generate: config.schema_config.generate,
-      filename: config.schema_config.filename,
-    ),
+    db_data: db_connection.db_data,
     applied:,
     files:,
+    dump_config: dump_file_config,
   ))
 }
 
 /// Create a new migration file in the specified folder with the provided name.
 pub fn new_migration(
-  migrations_folder: String,
+  migration_files_config: types.MigrationFilesConfig,
   name: String,
 ) -> Result(Nil, types.MigrateError) {
   use path <- result.map(fs.create_new_migration_file(
-    migrations_folder,
+    migration_files_config,
     timestamp.system_time(),
     name,
   ))
@@ -290,11 +366,11 @@ pub fn get_schema(engine: MigrationEngine) -> Result(String, types.MigrateError)
 
 /// Create or update a schema file if the engine configuration permits it.
 pub fn update_schema(engine: MigrationEngine) {
-  case engine.schema_data.generate {
-    False -> Ok(Nil)
-    True -> {
+  case engine.dump_config {
+    types.NoDump -> Ok(Nil)
+    types.DumpSchema(filename) -> {
       use schema <- result.try(get_schema(engine))
-      fs.write_schema_file(engine.schema_data.filename, schema)
+      fs.write_schema_file(filename, schema)
       |> result.map(fn(_) { io.println("Schema file updated") })
     }
   }
@@ -319,9 +395,9 @@ fn show(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
     "Last applied migration: " <> migrations_utils.format_migration_name(last),
   )
 
-  case engine.schema_data.generate {
-    False -> Ok(Nil)
-    True -> {
+  case engine.dump_config {
+    types.NoDump -> Ok(Nil)
+    types.DumpSchema(_) -> {
       use schema <- result.try(get_schema(engine))
 
       io.println("")

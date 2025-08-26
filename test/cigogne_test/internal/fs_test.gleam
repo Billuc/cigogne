@@ -8,8 +8,6 @@ import simplifile
 
 const migrations_folder = "priv_test/migrations"
 
-const migration_file_pattern = "*.sql"
-
 pub fn simplifile_read_directory_test() {
   let assert Ok(migs) = simplifile.read_directory(migrations_folder)
 
