@@ -1,0 +1,17 @@
+# This section will be overridden by eventual users of the library
+[database]
+# url = ""
+host = "localhost"
+user = "postgres"
+password = "postgres"
+port = 5432
+name = "postgres"
+
+# This section will be overridden by eventual users of the library
+[migration-table]
+schema = "public"
+table = "_migrations"
+
+[migrations]
+migration_folder = "migrations"
+dependencies = []
