@@ -17,7 +17,7 @@ const default_db_schema = "public"
 
 const default_migrations_table = "_migrations"
 
-const default_migration_folder = "migrations"
+const default_migration_folder = "priv/migrations"
 
 const default_dump_filename = "schema.sql"
 
@@ -102,8 +102,8 @@ fn cli_to_config(
 fn cli_to_conn_config(cli_config: cli.ConfigOptions) -> types.ConnectionConfig {
   types.ConnectionConfig(
     connection: cli_to_pog_conn_config(cli_config),
-    db_schema: cli_config.schema |> option.unwrap(default_db_schema),
-    migrations_table: cli_config.migration_table
+    db_schema: cli_config.db_schema |> option.unwrap(default_db_schema),
+    migrations_table: cli_config.migrations_table
       |> option.unwrap(default_migrations_table),
   )
 }
@@ -152,16 +152,19 @@ fn cli_to_migration_files_config(
   let migration_folder =
     cli_config.migration_folder
     |> option.unwrap(default_migration_folder)
+  let application_name =
+    cli_config.application_name
+    |> option.unwrap("")
 
-  types.MigrationFileConfig(application_name: "", migration_folder:)
+  types.MigrationFileConfig(application_name:, migration_folder:)
 }
 
 fn cli_to_dump_file_config(
   cli_config: cli.ConfigOptions,
 ) -> types.DumpFileConfig {
-  use <- bool.guard(!cli_config.gen_schema, types.NoDump)
+  use <- bool.guard(!cli_config.dump, types.NoDump)
   let schema_filename =
-    cli_config.schema_filename
+    cli_config.dump_filename
     |> option.unwrap(default_dump_filename)
   types.DumpSchema(schema_filename)
 }
@@ -267,12 +270,14 @@ pub fn apply(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
     engine.applied,
   ))
   apply_migration(engine, migration)
+  |> result.try(fn(_) { update_schema(engine) })
 }
 
 /// Roll back the last applied migration.
 pub fn rollback(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
   use last <- result.try(get_last_applied_migration(engine))
   rollback_migration(engine, last)
+  |> result.try(fn(_) { update_schema(engine) })
 }
 
 /// Apply the next `count` migrations.
@@ -290,6 +295,7 @@ pub fn apply_n(
   |> result.try(fn(migrations) {
     migrations |> list.try_each(apply_migration(engine, _))
   })
+  |> result.try(fn(_) { update_schema(engine) })
 }
 
 /// Roll back `count` migrations.
@@ -307,12 +313,14 @@ pub fn rollback_n(
   |> result.try(fn(migrations) {
     migrations |> list.try_each(rollback_migration(engine, _))
   })
+  |> result.try(fn(_) { update_schema(engine) })
 }
 
 /// Apply migrations until we reach the last defined migration.
 pub fn apply_to_last(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
   migrations_utils.find_all_non_applied_migration(engine.files, engine.applied)
   |> result.try(list.try_each(_, apply_migration(engine, _)))
+  |> result.try(fn(_) { update_schema(engine) })
 }
 
 /// Apply a migration to the database.
@@ -366,6 +374,7 @@ pub fn get_schema(engine: MigrationEngine) -> Result(String, types.MigrateError)
 
 /// Create or update a schema file if the engine configuration permits it.
 pub fn update_schema(engine: MigrationEngine) {
+  echo engine.dump_config
   case engine.dump_config {
     types.NoDump -> Ok(Nil)
     types.DumpSchema(filename) -> {

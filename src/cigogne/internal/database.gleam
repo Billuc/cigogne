@@ -240,12 +240,8 @@ pub fn get_schema(data: DatabaseData) -> Result(String, types.MigrateError) {
   case data.db_url {
     option.None -> Error(types.UrlError("None"))
     option.Some(url) ->
-      shellout.command(
-        "psql",
-        [url, "-c", "\\d " <> data.db_schema <> ".*"],
-        ".",
-        [],
-      )
+      shellout.command("pg_dump", [url, "-s"], ".", [])
       |> result.map_error(fn(err) { types.SchemaQueryError(err.1) })
+      |> echo
   }
 }

@@ -9,7 +9,7 @@ import gleam/result
 import pog
 
 // Modify these constants to match your local database setup
-const db_user = "lbillaud"
+const db_user = "billuc"
 
 const db_password = option.Some("mysecretpassword")
 

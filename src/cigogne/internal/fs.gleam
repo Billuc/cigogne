@@ -22,7 +22,9 @@ pub fn get_migrations(
     simplifile.read_directory(migrations_folder)
     |> result.replace_error(types.FileError(migrations_folder <> "/*.sql")),
   )
-  read_migration_files(files)
+  read_migration_files(
+    files |> list.map(fn(filename) { migrations_folder <> "/" <> filename }),
+  )
 }
 
 fn read_migration_files(
@@ -119,12 +121,16 @@ fn create_migration_folder(
   application_name: String,
   migrations_folder: String,
 ) -> Result(String, types.MigrateError) {
-  let priv =
-    application.priv_directory(application_name)
-    |> result.unwrap("priv")
+  let folder_path = case migrations_folder {
+    "priv/" <> folder ->
+      application.priv_directory(application_name)
+      |> result.unwrap("priv")
+      <> "/"
+      <> folder
+    mig_folder -> mig_folder
+  }
 
-  let folder_name = priv <> "/" <> migrations_folder
-  simplifile.create_directory_all(folder_name)
+  simplifile.create_directory_all(folder_path)
   |> result.replace_error(types.CreateFolderError(migrations_folder))
-  |> result.replace(folder_name)
+  |> result.replace(folder_path)
 }

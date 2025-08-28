@@ -17,16 +17,16 @@ pub type ConfigOptions {
     db_password: option.Option(String),
     db_port: option.Option(Int),
     db_name: option.Option(String),
-    schema: option.Option(String),
-    migration_table: option.Option(String),
-    gen_schema: Bool,
-    schema_filename: option.Option(String),
+    db_schema: option.Option(String),
+    migrations_table: option.Option(String),
+    dump: Bool,
+    dump_filename: option.Option(String),
     migration_folder: option.Option(String),
-    migration_pattern: option.Option(String),
+    application_name: option.Option(String),
   )
 }
 
-pub fn get_action(args: List(String)) {
+pub fn get_action(args: List(String)) -> Result(CliActions, Nil) {
   cli_lib.command("cigogne")
   |> cli_lib.with_description("Cigogne CLI")
   |> cli_lib.add_action(migrate_up_action())
@@ -35,6 +35,7 @@ pub fn get_action(args: List(String)) {
   |> cli_lib.add_action(show_migrations_action())
   |> cli_lib.add_action(migrate_to_last_action())
   |> cli_lib.run(args)
+  |> echo
 }
 
 fn migrate_up_action() -> cli_lib.Action(CliActions) {
@@ -158,32 +159,32 @@ fn config_decoder() -> cli_lib.ActionDecoder(ConfigOptions) {
     "Database name (default: postgres)",
     cli_lib.string,
   )
-  use schema <- cli_lib.flag(
+  use db_schema <- cli_lib.flag(
     "schema",
     ["S"],
     "SCHEMA",
     "Database schema to use (default: public)",
     cli_lib.string,
   )
-  use migration_table <- cli_lib.flag(
-    "migration-table",
+  use migrations_table <- cli_lib.flag(
+    "migrations-table",
     ["T"],
     "TABLE",
-    "Migration table name (default: _migrations)",
+    "Migrations table name (default: _migrations)",
     cli_lib.string,
   )
-  use no_gen_schema <- cli_lib.flag(
-    "no-gen-schema",
+  use dump <- cli_lib.flag(
+    "dump",
     ["G"],
     "",
-    "Disable generation schema file (default: false)",
+    "Enable the generation of a database schema dump file (default: false)",
     cli_lib.bool,
   )
-  use schema_filename <- cli_lib.flag(
-    "schema-filename",
+  use dump_filename <- cli_lib.flag(
+    "dump-filename",
     ["F"],
     "FILENAME",
-    "Schema filename to generate (default: ./sql.schema)",
+    "Dump filename to generate (default: ./schema.sql)",
     cli_lib.string,
   )
   use migration_folder <- cli_lib.flag(
@@ -193,11 +194,11 @@ fn config_decoder() -> cli_lib.ActionDecoder(ConfigOptions) {
     "Folder to store migrations (default: priv/migrations)",
     cli_lib.string,
   )
-  use migration_pattern <- cli_lib.flag(
-    "migration-pattern",
-    ["m"],
-    "PATTERN",
-    "Pattern to find migration scripts (default: *.sql)",
+  use application_name <- cli_lib.flag(
+    "application-name",
+    ["A"],
+    "APPNAME",
+    "Name of the application for which you want to migrate (default: current application)",
     cli_lib.string,
   )
 
@@ -208,11 +209,11 @@ fn config_decoder() -> cli_lib.ActionDecoder(ConfigOptions) {
     db_password:,
     db_port:,
     db_name:,
-    schema:,
-    migration_table:,
-    gen_schema: !no_gen_schema,
-    schema_filename:,
+    db_schema:,
+    migrations_table:,
+    dump:,
+    dump_filename:,
     migration_folder:,
-    migration_pattern:,
+    application_name:,
   ))
 }

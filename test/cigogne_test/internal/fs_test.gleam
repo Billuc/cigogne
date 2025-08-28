@@ -16,8 +16,8 @@ pub fn simplifile_read_directory_test() {
 }
 
 pub fn get_migrations_test() {
-  let assert Ok(migs) =
-    fs.get_migrations(migrations_folder, migration_file_pattern)
+  let config = types.MigrationFileConfig("", migrations_folder)
+  let assert Ok(migs) = fs.get_migrations(config)
 
   let sorted_migs =
     migs
@@ -67,15 +67,12 @@ pub fn write_schema_file_test() {
 pub fn create_new_migration_file_test() {
   let assert Ok(timestamp) = timestamp.parse_rfc3339("2024-11-17T18:36:41Z")
   let non_existing_folder = migrations_folder <> "/new"
+  let config = types.MigrationFileConfig("", non_existing_folder)
 
   let _ = simplifile.delete(non_existing_folder)
 
   let assert Ok(path) =
-    fs.create_new_migration_file(
-      non_existing_folder,
-      timestamp,
-      "MyNewMigration",
-    )
+    fs.create_new_migration_file(config, timestamp, "MyNewMigration")
 
   assert path == non_existing_folder <> "/20241117183641-MyNewMigration.sql"
 
@@ -94,12 +91,9 @@ pub fn create_new_migration_file_test() {
 
 pub fn create_new_migration_returns_error_if_name_too_long_test() {
   let assert Ok(timestamp) = timestamp.parse_rfc3339("2024-11-17T18:36:41Z")
+  let config = types.MigrationFileConfig("", migrations_folder)
 
   let assert Error(err) =
-    fs.create_new_migration_file(
-      migrations_folder,
-      timestamp,
-      string.repeat("a", 256),
-    )
+    fs.create_new_migration_file(config, timestamp, string.repeat("a", 256))
   assert err == types.NameTooLongError(string.repeat("a", 256))
 }
