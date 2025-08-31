@@ -6,37 +6,6 @@ import gleam/time/calendar
 import gleam/time/timestamp
 import pog
 
-/// The configuration linked to the database connection
-pub type PogConnectionConfig {
-  /// The default configuration. It uses the DATABASE_URL envvar to connect
-  EnvVar
-  /// A configuration using the URL to the database
-  ConnectionString(url: String)
-  /// A configuration using a pog.Config to connect. It disables schema generation.
-  PogConfig(config: pog.Config)
-  /// A configuration using a pog.Connection directly. It disables schema generation.
-  PogConnection(connection: pog.Connection)
-}
-
-/// cigogne's general configuration
-pub type ConnectionConfig {
-  ConnectionConfig(
-    connection: PogConnectionConfig,
-    db_schema: String,
-    migrations_table: String,
-  )
-}
-
-pub type MigrationFilesConfig {
-  MigrationFileConfig(application_name: String, migration_folder: String)
-}
-
-/// The configuration related to dump file generation
-pub type DumpFileConfig {
-  NoDump
-  DumpSchema(filename: String)
-}
-
 /// The errors returned by cigogne
 pub type MigrateError {
   EnvVarError(name: String)

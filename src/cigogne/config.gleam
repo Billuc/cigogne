@@ -3,8 +3,19 @@ import gleam/erlang/application
 import gleam/list
 import gleam/option
 import gleam/result
+import pog
 import simplifile
 import tom
+
+pub fn get_app_name() -> Result(String, Nil) {
+  use content <- result.try(
+    simplifile.read("gleam.toml")
+    |> result.replace_error(Nil),
+  )
+  use toml <- result.try(tom.parse(content) |> result.replace_error(Nil))
+
+  tom.get_string(toml, ["name"]) |> result.replace_error(Nil)
+}
 
 pub fn parse_toml(application_name: String) -> Config {
   application.priv_directory(application_name)
@@ -53,6 +64,7 @@ pub type DatabaseConfig {
     name: option.Option(String),
   )
   EnvVarConfig
+  ConnectionDbConfig(connection: pog.Connection)
 }
 
 const default_db_config = EnvVarConfig

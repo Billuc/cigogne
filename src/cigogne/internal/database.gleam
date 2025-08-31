@@ -1,3 +1,4 @@
+import cigogne/config
 import cigogne/internal/migrations_utils
 import cigogne/internal/utils
 import cigogne/types
@@ -9,7 +10,6 @@ import gleam/option
 import gleam/result
 import gleam/time/timestamp
 import pog
-import shellout
 
 const check_table_exist = "SELECT table_name, table_schema 
     FROM information_schema.tables 
@@ -56,44 +56,53 @@ pub type DatabaseData {
     connection: pog.Connection,
     migrations_table: String,
     db_schema: String,
-    db_url: option.Option(String),
   )
 }
 
-pub fn init(
-  config: types.ConnectionConfig,
-) -> Result(DatabaseData, types.MigrateError) {
-  use #(connection, db_url) <- result.try(connect(config.connection))
+pub fn init(config: config.Config) -> Result(DatabaseData, types.MigrateError) {
+  use connection <- result.try(connect(config.database))
   Ok(DatabaseData(
     connection:,
-    migrations_table: config.migrations_table,
-    db_schema: config.db_schema,
-    db_url:,
+    migrations_table: config.migration_table.table
+      |> option.unwrap("_migrations"),
+    db_schema: config.migration_table.schema |> option.unwrap("public"),
   ))
 }
 
 fn connect(
-  config: types.PogConnectionConfig,
-) -> Result(#(pog.Connection, option.Option(String)), types.MigrateError) {
+  config: config.DatabaseConfig,
+) -> Result(pog.Connection, types.MigrateError) {
   case config {
-    types.PogConnection(connection:) -> Ok(#(connection, option.None))
-    types.EnvVar -> {
+    config.EnvVarConfig ->
       envoy.get("DATABASE_URL")
       |> result.replace_error(types.EnvVarError("DATABASE_URL"))
-      |> result.try(fn(url) {
-        connection_from_url(url)
-        |> result.map(fn(c) { #(c, option.Some(url)) })
-      })
-    }
-    types.PogConfig(config:) ->
-      config
-      |> pog.start
+      |> result.try(connection_from_url)
+    config.UrlDbConfig(url:) -> connection_from_url(url)
+    config.ConnectionDbConfig(connection:) -> Ok(connection)
+    config.DetailedDbConfig(host:, user:, password:, port:, name:) -> {
+      let procname = process.new_name("cigogne-db")
+      let config =
+        pog.default_config(procname)
+        |> apply_if_some(user, pog.user)
+        |> pog.password(password)
+        |> apply_if_some(host, pog.host)
+        |> apply_if_some(port, pog.port)
+        |> apply_if_some(name, pog.database)
+      pog.start(config)
       |> result.map_error(types.ActorStartError)
-      |> result.map(fn(actor) { #(actor.data, option.None) })
-    types.ConnectionString(url:) -> {
-      connection_from_url(url)
-      |> result.map(fn(c) { #(c, option.Some(url)) })
+      |> result.map(fn(actor) { actor.data })
     }
+  }
+}
+
+fn apply_if_some(
+  input: a,
+  value: option.Option(b),
+  apply_fn: fn(a, b) -> a,
+) -> a {
+  case value {
+    option.Some(v) -> apply_fn(input, v)
+    option.None -> input
   }
 }
 
@@ -234,14 +243,4 @@ fn build_migration_data(
   data: #(timestamp.Timestamp, String, String),
 ) -> types.Migration {
   types.Migration("", data.0, data.1, [], [], data.2)
-}
-
-pub fn get_schema(data: DatabaseData) -> Result(String, types.MigrateError) {
-  case data.db_url {
-    option.None -> Error(types.UrlError("None"))
-    option.Some(url) ->
-      shellout.command("pg_dump", [url, "-s"], ".", [])
-      |> result.map_error(fn(err) { types.SchemaQueryError(err.1) })
-      |> echo
-  }
 }

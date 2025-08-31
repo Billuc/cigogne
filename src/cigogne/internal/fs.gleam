@@ -1,3 +1,4 @@
+import cigogne/config
 import cigogne/internal/migration_parser
 import cigogne/internal/migrations_utils
 import cigogne/internal/utils
@@ -5,17 +6,21 @@ import cigogne/types
 import gleam/bool
 import gleam/erlang/application
 import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
 import gleam/time/timestamp
 import simplifile
 
+const default_migration_folder = "migrations"
+
 pub fn get_migrations(
-  config: types.MigrationFilesConfig,
+  config: config.MigrationsConfig,
+  application_name: String,
 ) -> Result(List(types.Migration), types.MigrateError) {
   use migrations_folder <- result.try(create_migration_folder(
-    config.application_name,
-    config.migration_folder,
+    application_name,
+    config.migration_folder |> option.unwrap(default_migration_folder),
   ))
 
   use files <- result.try(
@@ -71,30 +76,16 @@ pub fn read_migration_file(
   }
 }
 
-pub fn read_schema_file(
-  schema_file_path: String,
-) -> Result(String, types.MigrateError) {
-  simplifile.read(schema_file_path)
-  |> result.replace_error(types.FileError(schema_file_path))
-}
-
-pub fn write_schema_file(
-  schema_file_path: String,
-  content: String,
-) -> Result(Nil, types.MigrateError) {
-  simplifile.write(schema_file_path, content)
-  |> result.replace_error(types.FileError(schema_file_path))
-}
-
 pub fn create_new_migration_file(
-  config: types.MigrationFilesConfig,
+  config: config.MigrationsConfig,
+  application_name: String,
   timestamp: timestamp.Timestamp,
   name: String,
 ) -> Result(String, types.MigrateError) {
   use name <- result.try(migrations_utils.check_name(name))
   use migrations_folder <- result.try(create_migration_folder(
-    config.application_name,
-    config.migration_folder,
+    application_name,
+    config.migration_folder |> option.unwrap(default_migration_folder),
   ))
 
   let file_path =
@@ -121,14 +112,10 @@ fn create_migration_folder(
   application_name: String,
   migrations_folder: String,
 ) -> Result(String, types.MigrateError) {
-  let folder_path = case migrations_folder {
-    "priv/" <> folder ->
-      application.priv_directory(application_name)
-      |> result.unwrap("priv")
-      <> "/"
-      <> folder
-    mig_folder -> mig_folder
-  }
+  let folder_path =
+    application.priv_directory(application_name) |> result.unwrap("priv")
+    <> "/"
+    <> migrations_folder
 
   simplifile.create_directory_all(folder_path)
   |> result.replace_error(types.CreateFolderError(migrations_folder))
