@@ -3,6 +3,7 @@
 # url = ""
 host = "localhost"
 user = "postgres"
+# /!\ It is not recommended to have your password there
 password = "postgres"
 port = 5432
 name = "postgres"

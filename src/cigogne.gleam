@@ -44,11 +44,11 @@ pub fn main() {
   use cli_action <- result.try(cli.get_action(args))
 
   case cli_action {
-    cli.NewMigration(folder:, name:) ->
+    cli.NewMigration(migrations:, name:) ->
       new_migration(
         types.MigrationFileConfig(
           "",
-          folder
+          migrations.migration_folder
             |> option.unwrap(default_migration_folder),
         ),
         name,
