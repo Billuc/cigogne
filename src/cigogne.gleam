@@ -42,7 +42,7 @@ pub fn main() {
       create_engine(config)
       |> result.try(rollback_n(_, count))
     }
-    cli.MigrateToLast(config:) -> {
+    cli.MigrateUpAll(config:) -> {
       create_engine(config)
       |> result.try(apply_all)
     }

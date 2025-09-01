@@ -7,7 +7,7 @@ pub type CliActions {
   MigrateUp(config: config.Config, count: Int)
   MigrateDown(config: config.Config, count: Int)
   ShowMigrations(config: config.Config)
-  MigrateToLast(config: config.Config)
+  MigrateUpAll(config: config.Config)
   NewMigration(migrations: config.MigrationsConfig, name: String)
 }
 
@@ -20,7 +20,7 @@ pub fn get_action(args: List(String)) -> Result(CliActions, Nil) {
   |> cli_lib.add_action(migrate_down_action(application_name))
   |> cli_lib.add_action(new_migration_action(application_name))
   |> cli_lib.add_action(show_migrations_action(application_name))
-  |> cli_lib.add_action(migrate_to_last_action(application_name))
+  |> cli_lib.add_action(migrate_up_all_action(application_name))
   |> cli_lib.run(args)
 }
 
@@ -73,12 +73,10 @@ fn show_migrations_action(
   )
 }
 
-fn migrate_to_last_action(
-  application_name: String,
-) -> cli_lib.Action(CliActions) {
+fn migrate_up_all_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(["up-all"], "Apply all non-applied migrations", {
     use config <- cli_lib.map_action(config_decoder(application_name))
-    MigrateToLast(config)
+    MigrateUpAll(config)
   })
 }
 
