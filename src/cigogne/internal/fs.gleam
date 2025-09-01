@@ -16,10 +16,9 @@ const default_migration_folder = "migrations"
 
 pub fn get_migrations(
   config: config.MigrationsConfig,
-  application_name: String,
 ) -> Result(List(types.Migration), types.MigrateError) {
   use migrations_folder <- result.try(create_migration_folder(
-    application_name,
+    config.application_name,
     config.migration_folder |> option.unwrap(default_migration_folder),
   ))
 
@@ -78,13 +77,12 @@ pub fn read_migration_file(
 
 pub fn create_new_migration_file(
   config: config.MigrationsConfig,
-  application_name: String,
   timestamp: timestamp.Timestamp,
   name: String,
 ) -> Result(String, types.MigrateError) {
   use name <- result.try(migrations_utils.check_name(name))
   use migrations_folder <- result.try(create_migration_folder(
-    application_name,
+    config.application_name,
     config.migration_folder |> option.unwrap(default_migration_folder),
   ))
 

@@ -20,7 +20,7 @@ pub fn get_app_name() -> Result(String, Nil) {
 pub fn parse_toml(application_name: String) -> Config {
   application.priv_directory(application_name)
   |> result.try(read_config_file)
-  |> result.map(parse_config_file)
+  |> result.map(parse_config_file(_, application_name))
   |> result.unwrap(default_config)
 }
 
@@ -44,12 +44,12 @@ const default_config = Config(
   default_migrations_config,
 )
 
-fn parse_config_file(content: String) {
+fn parse_config_file(content: String, application_name: String) -> Config {
   let toml = tom.parse(content) |> result.unwrap(dict.new())
 
   let database = parse_db_section(toml)
   let migration_table = parse_migration_table_section(toml)
-  let migrations = parse_migrations_section(toml)
+  let migrations = parse_migrations_section(toml, application_name)
 
   Config(database:, migration_table:, migrations:)
 }
@@ -112,15 +112,17 @@ fn parse_migration_table_section(
 
 pub type MigrationsConfig {
   MigrationsConfig(
+    application_name: String,
     migration_folder: option.Option(String),
     dependencies: List(String),
   )
 }
 
-const default_migrations_config = MigrationsConfig(option.None, [])
+const default_migrations_config = MigrationsConfig("cigogne", option.None, [])
 
 fn parse_migrations_section(
   toml: dict.Dict(String, tom.Toml),
+  application_name: String,
 ) -> MigrationsConfig {
   let migration_folder =
     tom.get_string(toml, ["migrations", "migration_folder"])
@@ -137,7 +139,7 @@ fn parse_migrations_section(
     })
     |> result.unwrap(default_migrations_config.dependencies)
 
-  MigrationsConfig(migration_folder:, dependencies:)
+  MigrationsConfig(application_name:, migration_folder:, dependencies:)
 }
 
 pub fn merge(config: Config, to_merge: Config) -> Config {
@@ -183,8 +185,20 @@ fn merge_migrations_config(
   to_merge: MigrationsConfig,
 ) -> MigrationsConfig {
   MigrationsConfig(
+    application_name: to_merge.application_name,
     migration_folder: to_merge.migration_folder
       |> option.or(config.migration_folder),
     dependencies: list.append(to_merge.dependencies, config.dependencies),
   )
+}
+
+pub fn init_config(application_name: String) -> Result(Nil, Nil) {
+  use cigogne_priv <- result.try(application.priv_directory("cigogne"))
+  use app_priv <- result.try(application.priv_directory(application_name))
+
+  simplifile.copy_file(
+    cigogne_priv <> "/cigogne.toml",
+    app_priv <> "/cigogne.toml",
+  )
+  |> result.replace_error(Nil)
 }

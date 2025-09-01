@@ -1,6 +1,7 @@
 import cigogne/config
 import cigogne/internal/cli_lib
 import gleam/option
+import gleam/result
 
 pub type CliActions {
   MigrateUp(config: config.Config, count: Int)
@@ -11,18 +12,19 @@ pub type CliActions {
 }
 
 pub fn get_action(args: List(String)) -> Result(CliActions, Nil) {
+  use application_name <- result.try(config.get_app_name())
+
   cli_lib.command("cigogne")
   |> cli_lib.with_description("Cigogne CLI")
-  |> cli_lib.add_action(migrate_up_action())
-  |> cli_lib.add_action(migrate_down_action())
-  |> cli_lib.add_action(new_migration_action())
-  |> cli_lib.add_action(show_migrations_action())
-  |> cli_lib.add_action(migrate_to_last_action())
+  |> cli_lib.add_action(migrate_up_action(application_name))
+  |> cli_lib.add_action(migrate_down_action(application_name))
+  |> cli_lib.add_action(new_migration_action(application_name))
+  |> cli_lib.add_action(show_migrations_action(application_name))
+  |> cli_lib.add_action(migrate_to_last_action(application_name))
   |> cli_lib.run(args)
-  |> echo
 }
 
-fn migrate_up_action() -> cli_lib.Action(CliActions) {
+fn migrate_up_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
     ["up"],
     "Migrate up one version / Apply one migration",
@@ -34,13 +36,13 @@ fn migrate_up_action() -> cli_lib.Action(CliActions) {
         "Number of migrations to apply",
         cli_lib.int,
       )
-      use config <- cli_lib.map_action(config_decoder())
+      use config <- cli_lib.map_action(config_decoder(application_name))
       MigrateUp(config, count |> option.unwrap(1))
     },
   )
 }
 
-fn migrate_down_action() -> cli_lib.Action(CliActions) {
+fn migrate_down_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
     ["down"],
     "Migrate down one version / Rollback one migration",
@@ -52,36 +54,42 @@ fn migrate_down_action() -> cli_lib.Action(CliActions) {
         "Number of migrations to rollback",
         cli_lib.int,
       )
-      use config <- cli_lib.map_action(config_decoder())
+      use config <- cli_lib.map_action(config_decoder(application_name))
       MigrateDown(config, count |> option.unwrap(1))
     },
   )
 }
 
-fn show_migrations_action() -> cli_lib.Action(CliActions) {
+fn show_migrations_action(
+  application_name: String,
+) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
     ["show"],
     "Show the last / currently applied migration",
     {
-      use config <- cli_lib.map_action(config_decoder())
+      use config <- cli_lib.map_action(config_decoder(application_name))
       ShowMigrations(config)
     },
   )
 }
 
-fn migrate_to_last_action() -> cli_lib.Action(CliActions) {
+fn migrate_to_last_action(
+  application_name: String,
+) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(["up-all"], "Apply all non-applied migrations", {
-    use config <- cli_lib.map_action(config_decoder())
+    use config <- cli_lib.map_action(config_decoder(application_name))
     MigrateToLast(config)
   })
 }
 
-fn new_migration_action() -> cli_lib.Action(CliActions) {
+fn new_migration_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
     ["new"],
     "Create a new migration file (by default created in priv/migrations)",
     {
-      use migrations <- cli_lib.then_action(migrations_config_decoder())
+      use migrations <- cli_lib.then_action(migrations_config_decoder(
+        application_name,
+      ))
       use name <- cli_lib.flag(
         "name",
         ["N"],
@@ -94,10 +102,14 @@ fn new_migration_action() -> cli_lib.Action(CliActions) {
   )
 }
 
-fn config_decoder() -> cli_lib.ActionDecoder(config.Config) {
+fn config_decoder(
+  application_name: String,
+) -> cli_lib.ActionDecoder(config.Config) {
   use database <- cli_lib.then_action(database_config_decoder())
   use migration_table <- cli_lib.then_action(migration_table_config_decoder())
-  use migrations <- cli_lib.map_action(migrations_config_decoder())
+  use migrations <- cli_lib.map_action(migrations_config_decoder(
+    application_name,
+  ))
 
   config.Config(database:, migration_table:, migrations:)
 }
@@ -174,7 +186,9 @@ fn migration_table_config_decoder() -> cli_lib.ActionDecoder(
   cli_lib.options(config.MigrationTableConfig(schema:, table:))
 }
 
-fn migrations_config_decoder() -> cli_lib.ActionDecoder(config.MigrationsConfig) {
+fn migrations_config_decoder(
+  application_name: String,
+) -> cli_lib.ActionDecoder(config.MigrationsConfig) {
   use migration_folder <- cli_lib.flag(
     "migration-folder",
     ["M"],
@@ -185,7 +199,8 @@ fn migrations_config_decoder() -> cli_lib.ActionDecoder(config.MigrationsConfig)
 
   cli_lib.options(
     config.MigrationsConfig(
-      migration_folder: migration_folder,
+      application_name:,
+      migration_folder:,
       dependencies: [],
     ),
   )

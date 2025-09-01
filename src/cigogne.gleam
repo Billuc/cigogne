@@ -6,20 +6,11 @@ import cigogne/internal/fs
 import cigogne/internal/migrations_utils
 import cigogne/types
 import gleam/bool
-import gleam/erlang/process
 import gleam/io
 import gleam/list
-import gleam/option
 import gleam/result
 import gleam/string
 import gleam/time/timestamp
-import pog
-
-/// The DatabaseConnection is a preliminary step to creating a MigrationEngine.
-/// This object can be shared with libraries so that they can apply their migrations too.
-pub opaque type DatabaseConnection {
-  DatabaseConnection(db_data: database.DatabaseData)
-}
 
 /// The MigrationEngine contains all the data required to apply and roll back migrations.
 /// Checks are run in order to make sure the database is in a correct state.
@@ -29,6 +20,7 @@ pub opaque type MigrationEngine {
     db_data: database.DatabaseData,
     applied: List(types.Migration),
     files: List(types.Migration),
+    migrations_config: config.MigrationsConfig,
   )
 }
 
@@ -39,75 +31,53 @@ pub fn main() {
   case cli_action {
     cli.NewMigration(migrations:, name:) -> new_migration(migrations, name)
     cli.ShowMigrations(config:) -> {
-      use db_conn <- result.try(init_connection(config))
-
-      db_conn
-      |> create_engine(migs_config, dump_config)
+      create_engine(config)
       |> result.map(show)
     }
-    cli.MigrateUp(options:, count:) -> {
-      let #(conn_config, migs_config, dump_config) = cli_to_config(options)
-      use db_conn <- result.try(init_connection(conn_config))
-
-      db_conn
-      |> create_engine(migs_config, dump_config)
+    cli.MigrateUp(config:, count:) -> {
+      create_engine(config)
       |> result.try(apply_n(_, count))
     }
-    cli.MigrateDown(options:, count:) -> {
-      let #(conn_config, migs_config, dump_config) = cli_to_config(options)
-      use db_conn <- result.try(init_connection(conn_config))
-
-      db_conn
-      |> create_engine(migs_config, dump_config)
+    cli.MigrateDown(config:, count:) -> {
+      create_engine(config)
       |> result.try(rollback_n(_, count))
     }
-    cli.MigrateToLast(options:) -> {
-      let #(conn_config, migs_config, dump_config) = cli_to_config(options)
-      use db_conn <- result.try(init_connection(conn_config))
-
-      db_conn
-      |> create_engine(migs_config, dump_config)
-      |> result.try(apply_to_last)
+    cli.MigrateToLast(config:) -> {
+      create_engine(config)
+      |> result.try(apply_all)
     }
   }
   |> result.map_error(types.print_migrate_error)
-}
-
-pub fn init_connection(
-  config: config.Config,
-) -> Result(DatabaseConnection, types.MigrateError) {
-  use db_data <- result.try(database.init(config))
-
-  use _ <- result.try(database.apply_cigogne_zero(db_data))
-  Ok(DatabaseConnection(db_data))
 }
 
 /// Creates a MigrationEngine from a configuration.
 /// This function will try to connect to the database, create the migrations table if it doesn't exist.
 /// Then it will fetch the applied migrations and the existing migration files and check that hashes do match.
 pub fn create_engine(
-  db_connection: DatabaseConnection,
   config: config.Config,
 ) -> Result(MigrationEngine, types.MigrateError) {
-  use applied <- result.try(database.get_applied_migrations(
-    db_connection.db_data,
-  ))
-  let application_name = config.get_app_name()
-  use files <- result.try(fs.get_migrations(config.migrations, application_name))
+  use db_data <- result.try(database.init(config))
+  use _ <- result.try(database.apply_cigogne_zero(db_data))
+
+  use applied <- result.try(database.get_applied_migrations(db_data))
+  use files <- result.try(fs.get_migrations(config.migrations))
   use _ <- result.try(verify_applied_migration_hashes(applied, files))
 
-  Ok(MigrationEngine(db_data: db_connection.db_data, applied:, files:))
+  Ok(MigrationEngine(
+    db_data:,
+    applied:,
+    files:,
+    migrations_config: config.migrations,
+  ))
 }
 
 /// Create a new migration file in the specified folder with the provided name.
 pub fn new_migration(
   config: config.MigrationsConfig,
-  application_name: String,
   name: String,
 ) -> Result(Nil, types.MigrateError) {
   use path <- result.map(fs.create_new_migration_file(
     config,
-    application_name,
     timestamp.system_time(),
     name,
   ))
