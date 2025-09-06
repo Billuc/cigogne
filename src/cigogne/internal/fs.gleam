@@ -119,3 +119,67 @@ fn create_migration_folder(
   |> result.replace_error(types.CreateFolderError(migrations_folder))
   |> result.replace(folder_path)
 }
+
+pub fn merge_migrations(
+  config: config.MigrationsConfig,
+  migrations: List(types.Migration),
+  timestamp: timestamp.Timestamp,
+  name: String,
+) {
+  use name <- result.try(migrations_utils.check_name(name))
+  use migrations_folder <- result.try(create_migration_folder(
+    config.application_name,
+    config.migration_folder |> option.unwrap(default_migration_folder),
+  ))
+
+  let file_path =
+    migrations_folder
+    <> "/"
+    <> migrations_utils.to_migration_filename(timestamp, name)
+
+  let #(ups, downs) = merge_migration_contents(migrations)
+
+  simplifile.create_file(file_path)
+  |> result.try(fn(_) {
+    file_path
+    |> simplifile.write(
+      migration_parser.migration_up_guard
+      <> "\n"
+      <> ups |> string.join("\n")
+      <> "\n"
+      <> migration_parser.migration_down_guard
+      <> "\n"
+      <> downs |> string.join("\n")
+      <> "\n"
+      <> migration_parser.migration_end_guard,
+    )
+  })
+  |> result.replace_error(types.FileError(file_path))
+  |> result.map(fn(_) { file_path })
+}
+
+fn merge_migration_contents(migrations: List(types.Migration)) {
+  do_merge_contents(migrations, #([], []))
+}
+
+fn do_merge_contents(
+  migrations: List(types.Migration),
+  contents: #(List(String), List(String)),
+) -> #(List(String), List(String)) {
+  case migrations {
+    [] -> contents
+    [mig, ..rest] -> {
+      let migration_name = migrations_utils.format_migration_name(mig)
+      let #(ups, downs) = contents
+
+      let mig_ups = ["--- " <> migration_name, ..mig.queries_up]
+      let ups = list.append(ups, mig_ups)
+
+      let mig_downs = ["--- " <> migration_name, ..mig.queries_down]
+      // Prepending the next migration for the down queries so that rollbacks can be done in the right order
+      let downs = list.append(mig_downs, downs)
+
+      do_merge_contents(rest, #(ups, downs))
+    }
+  }
+}

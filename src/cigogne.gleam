@@ -30,22 +30,16 @@ pub fn main() {
 
   case cli_action {
     cli.NewMigration(migrations:, name:) -> new_migration(migrations, name)
-    cli.ShowMigrations(config:) -> {
-      create_engine(config)
-      |> result.map(show)
-    }
-    cli.MigrateUp(config:, count:) -> {
-      create_engine(config)
-      |> result.try(apply_n(_, count))
-    }
-    cli.MigrateDown(config:, count:) -> {
-      create_engine(config)
-      |> result.try(rollback_n(_, count))
-    }
-    cli.MigrateUpAll(config:) -> {
-      create_engine(config)
-      |> result.try(apply_all)
-    }
+    cli.ShowMigrations(config:) -> create_engine(config) |> result.map(show)
+    cli.MigrateUp(config:, count:) ->
+      create_engine(config) |> result.try(apply_n(_, count))
+    cli.MigrateDown(config:, count:) ->
+      create_engine(config) |> result.try(rollback_n(_, count))
+    cli.MigrateUpAll(config:) -> create_engine(config) |> result.try(apply_all)
+    cli.IncludeLib(config:, lib_name:) ->
+      create_engine(config) |> result.try(include_lib(_, lib_name))
+    cli.RemoveLib(config:, lib_name:) ->
+      create_engine(config) |> result.try(remove_lib(_, lib_name))
   }
   |> result.map_error(types.print_migrate_error)
 }
@@ -137,6 +131,28 @@ pub fn rollback_n(
 pub fn apply_all(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
   migrations_utils.find_all_non_applied_migration(engine.files, engine.applied)
   |> result.try(list.try_each(_, apply_migration(engine, _)))
+}
+
+pub fn include_lib(migration_engine: MigrationEngine, lib_name: String) {
+  // TODO : fail here if lib not there
+  let lib_config = config.parse_toml(lib_name)
+  use lib_migrations <- result.try(fs.get_migrations(lib_config.migrations))
+
+  let included_file =
+    fs.merge_migrations(
+      migration_engine.migrations_config,
+      lib_migrations,
+      timestamp.system_time(),
+      lib_name,
+    )
+  // TODO : update dependencies array
+}
+
+fn remove_lib(
+  migration_engine: MigrationEngine,
+  lib_name: String,
+) -> Result(Nil, types.MigrateError) {
+  todo
 }
 
 /// Apply a migration to the database.

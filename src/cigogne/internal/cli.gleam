@@ -9,6 +9,8 @@ pub type CliActions {
   ShowMigrations(config: config.Config)
   MigrateUpAll(config: config.Config)
   NewMigration(migrations: config.MigrationsConfig, name: String)
+  IncludeLib(config: config.Config, lib_name: String)
+  RemoveLib(config: config.Config, lib_name: String)
 }
 
 pub fn get_action(args: List(String)) -> Result(CliActions, Nil) {
@@ -21,6 +23,8 @@ pub fn get_action(args: List(String)) -> Result(CliActions, Nil) {
   |> cli_lib.add_action(new_migration_action(application_name))
   |> cli_lib.add_action(show_migrations_action(application_name))
   |> cli_lib.add_action(migrate_up_all_action(application_name))
+  |> cli_lib.add_action(include_lib_action(application_name))
+  |> cli_lib.add_action(remove_lib_action(application_name))
   |> cli_lib.run(args)
 }
 
@@ -96,6 +100,42 @@ fn new_migration_action(application_name: String) -> cli_lib.Action(CliActions) 
         cli_lib.required(cli_lib.string, ""),
       )
       cli_lib.options(NewMigration(migrations, name))
+    },
+  )
+}
+
+fn include_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
+  cli_lib.create_action(
+    ["include_lib"],
+    "Include migrations from specified library",
+    {
+      use config <- cli_lib.then_action(config_decoder(application_name))
+      use lib_name <- cli_lib.flag(
+        "name",
+        ["N"],
+        "LIB_NAME",
+        "Name of the library to include",
+        cli_lib.required(cli_lib.string, ""),
+      )
+      cli_lib.options(IncludeLib(config:, lib_name:))
+    },
+  )
+}
+
+fn remove_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
+  cli_lib.create_action(
+    ["remove_lib"],
+    "Remove migrations from specified library",
+    {
+      use config <- cli_lib.then_action(config_decoder(application_name))
+      use lib_name <- cli_lib.flag(
+        "name",
+        ["N"],
+        "LIB_NAME",
+        "Name of the library to remove",
+        cli_lib.required(cli_lib.string, ""),
+      )
+      cli_lib.options(RemoveLib(config:, lib_name:))
     },
   )
 }
