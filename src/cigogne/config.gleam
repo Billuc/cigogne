@@ -1,8 +1,10 @@
 import gleam/dict
 import gleam/erlang/application
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
+import gleam/string
 import pog
 import simplifile
 import tom
@@ -17,9 +19,10 @@ pub fn get_app_name() -> Result(String, Nil) {
   tom.get_string(toml, ["name"]) |> result.replace_error(Nil)
 }
 
-pub fn parse_toml(application_name: String) -> Config {
-  application.priv_directory(application_name)
-  |> result.try(read_config_file)
+pub fn parse_toml(application_name: String) -> Result(Config, Nil) {
+  use priv_dir <- result.map(application.priv_directory(application_name))
+
+  read_config_file(priv_dir)
   |> result.map(parse_config_file(_, application_name))
   |> result.unwrap(default_config)
 }
@@ -38,7 +41,7 @@ pub type Config {
   )
 }
 
-const default_config = Config(
+pub const default_config = Config(
   default_db_config,
   default_mig_table_config,
   default_migrations_config,
@@ -114,7 +117,7 @@ pub type MigrationsConfig {
   MigrationsConfig(
     application_name: String,
     migration_folder: option.Option(String),
-    dependencies: List(String),
+    dependencies: List(#(String, String)),
   )
 }
 
@@ -128,12 +131,12 @@ fn parse_migrations_section(
     tom.get_string(toml, ["migrations", "migration_folder"])
     |> option.from_result()
   let dependencies =
-    tom.get_array(toml, ["migrations", "dependencies"])
+    tom.get_table(toml, ["migrations", "dependencies"])
     |> result.replace_error(Nil)
     |> result.try(fn(deps) {
-      use dep <- list.try_map(deps)
+      use dep <- list.try_map(deps |> dict.to_list())
       case dep {
-        tom.String(v) -> Ok(v)
+        #(k, tom.String(v)) -> Ok(#(k, v))
         _ -> Error(Nil)
       }
     })
@@ -192,13 +195,113 @@ fn merge_migrations_config(
   )
 }
 
+pub fn print_config(config: Config) -> String {
+  let db_str = print_db_config(config.database)
+  let mig_table_str = print_migration_table_config(config.migration_table)
+  let mig_str = print_migrations_config(config.migrations)
+  db_str <> mig_table_str <> mig_str
+}
+
+fn print_db_config(config: DatabaseConfig) -> String {
+  let db_str =
+    "# This section will be overridden by eventual users of the library\n"
+    <> "[database]\n"
+    <> "# If url is defined, it is used to connect to the database\n"
+
+  let db_str = case config {
+    UrlDbConfig(url:) -> db_str <> "url = \"" <> url <> "\"\n\n"
+    _ -> db_str <> "# url = \"\"\n\n"
+  }
+
+  let db_str =
+    db_str
+    <> "# If other data in this section is defined, it is used to connect\n"
+    <> "# Otherwise, we fallback to the DATABASE_URL environment variable\n"
+
+  case config {
+    DetailedDbConfig(host:, user:, password:, port:, name:) -> {
+      let host_str = print_option_string(host, "host", "localhost")
+      let user_str = print_option_string(user, "user", "postgres")
+      let password_str = print_option_string(password, "password", "postgres")
+      let port_str = print_option_int(port, "port", 5432)
+      let name_str = print_option_string(name, "name", "postgres")
+
+      db_str
+      <> host_str
+      <> user_str
+      <> "# /!\\ It is not recommended to have your password there\n"
+      <> password_str
+      <> port_str
+      <> name_str
+      <> "\n"
+    }
+    _ ->
+      db_str
+      <> "# host = \"localhost\"\n"
+      <> "# user = \"postgres\"\n"
+      <> "# /!\\ It is not recommended to have your password there\n"
+      <> "# password = \"postgres\"\n"
+      <> "# port = 5432\n"
+      <> "# name = \"postgres\"\n\n"
+  }
+}
+
+fn print_migration_table_config(config: MigrationTableConfig) -> String {
+  let mig_table_str =
+    "# This section will be overridden by eventual users of the library\n"
+    <> "[migration-table]\n"
+
+  let schema_str = print_option_string(config.schema, "schema", "public")
+  let table_str = print_option_string(config.table, "table", "migrations")
+
+  mig_table_str <> schema_str <> table_str <> "\n"
+}
+
+fn print_migrations_config(config: MigrationsConfig) -> String {
+  let mig_str = "[migrations]\n"
+
+  let mig_folder_str =
+    print_option_string(
+      config.migration_folder,
+      "migration_folder",
+      "migrations",
+    )
+
+  let dependencies_str =
+    "\n[migrations.dependencies]\n"
+    <> list.map(config.dependencies, fn(dep) {
+      dep.0 <> " = \"" <> dep.1 <> "\""
+    })
+    |> string.join("\n")
+
+  mig_str <> mig_folder_str <> dependencies_str <> "\n"
+}
+
+fn print_option_string(
+  value: option.Option(String),
+  name: String,
+  default: String,
+) -> String {
+  case value {
+    option.Some(v) -> name <> " = \"" <> v <> "\"\n"
+    option.None -> "# " <> name <> " = \"" <> default <> "\"\n"
+  }
+}
+
+fn print_option_int(
+  value: option.Option(Int),
+  name: String,
+  default: Int,
+) -> String {
+  case value {
+    option.Some(v) -> name <> " = " <> int.to_string(v) <> "\n"
+    option.None -> "# " <> name <> " = " <> int.to_string(default) <> "\n"
+  }
+}
+
 pub fn init_config(application_name: String) -> Result(Nil, Nil) {
-  use cigogne_priv <- result.try(application.priv_directory("cigogne"))
   use app_priv <- result.try(application.priv_directory(application_name))
 
-  simplifile.copy_file(
-    cigogne_priv <> "/cigogne.toml",
-    app_priv <> "/cigogne.toml",
-  )
+  simplifile.write(app_priv <> "/cigogne.toml", print_config(default_config))
   |> result.replace_error(Nil)
 }

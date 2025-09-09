@@ -134,8 +134,10 @@ pub fn apply_all(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
 }
 
 pub fn include_lib(migration_engine: MigrationEngine, lib_name: String) {
-  // TODO : fail here if lib not there
-  let lib_config = config.parse_toml(lib_name)
+  use lib_config <- result.try(
+    config.parse_toml(lib_name)
+    |> result.replace_error(types.MissingDependencyError(lib_name)),
+  )
   use lib_migrations <- result.try(fs.get_migrations(lib_config.migrations))
 
   let included_file =
