@@ -19,7 +19,7 @@ pub fn get_app_name() -> Result(String, Nil) {
   tom.get_string(toml, ["name"]) |> result.replace_error(Nil)
 }
 
-pub fn parse_toml(application_name: String) -> Result(Config, Nil) {
+pub fn parse_config(application_name: String) -> Result(Config, Nil) {
   use priv_dir <- result.map(application.priv_directory(application_name))
 
   read_config_file(priv_dir)
@@ -30,6 +30,16 @@ pub fn parse_toml(application_name: String) -> Result(Config, Nil) {
 fn read_config_file(folder: String) -> Result(String, Nil) {
   let filename = folder <> "/cigogne.toml"
   simplifile.read(filename)
+  |> result.replace_error(Nil)
+}
+
+pub fn write_config(config: Config) -> Result(Nil, Nil) {
+  use priv_dir <- result.try(application.priv_directory(
+    config.migrations.application_name,
+  ))
+
+  let filename = priv_dir <> "/cigogne.toml"
+  simplifile.write(filename, print_config(config))
   |> result.replace_error(Nil)
 }
 

@@ -125,8 +125,13 @@ pub fn merge_migrations(
   migrations: List(types.Migration),
   timestamp: timestamp.Timestamp,
   name: String,
-) {
+) -> Result(String, types.MigrateError) {
   use name <- result.try(migrations_utils.check_name(name))
+  use <- bool.guard(
+    list.is_empty(migrations),
+    Error(types.NoMigrationToApplyError),
+  )
+
   use migrations_folder <- result.try(create_migration_folder(
     config.application_name,
     config.migration_folder |> option.unwrap(default_migration_folder),

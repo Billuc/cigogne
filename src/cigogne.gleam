@@ -20,7 +20,7 @@ pub opaque type MigrationEngine {
     db_data: database.DatabaseData,
     applied: List(types.Migration),
     files: List(types.Migration),
-    migrations_config: config.MigrationsConfig,
+    config: config.Config,
   )
 }
 
@@ -57,12 +57,7 @@ pub fn create_engine(
   use files <- result.try(fs.get_migrations(config.migrations))
   use _ <- result.try(verify_applied_migration_hashes(applied, files))
 
-  Ok(MigrationEngine(
-    db_data:,
-    applied:,
-    files:,
-    migrations_config: config.migrations,
-  ))
+  Ok(MigrationEngine(db_data:, applied:, files:, config:))
 }
 
 /// Create a new migration file in the specified folder with the provided name.
@@ -135,26 +130,87 @@ pub fn apply_all(engine: MigrationEngine) -> Result(Nil, types.MigrateError) {
 
 pub fn include_lib(migration_engine: MigrationEngine, lib_name: String) {
   use lib_config <- result.try(
-    config.parse_toml(lib_name)
+    config.parse_config(lib_name)
     |> result.replace_error(types.MissingDependencyError(lib_name)),
   )
   use lib_migrations <- result.try(fs.get_migrations(lib_config.migrations))
+  let last_migration_for_dep =
+    migration_engine.config.migrations.dependencies |> list.key_find(lib_name)
 
-  let included_file =
-    fs.merge_migrations(
-      migration_engine.migrations_config,
-      lib_migrations,
-      timestamp.system_time(),
-      lib_name,
+  let lib_migrations = case last_migration_for_dep {
+    Error(_) -> lib_migrations
+    Ok(name) ->
+      lib_migrations
+      |> list.drop_while(fn(mig) {
+        mig |> migrations_utils.format_migration_name() != name
+      })
+      |> list.drop(1)
+  }
+
+  use _included_file <- result.try(fs.merge_migrations(
+    migration_engine.config.migrations,
+    lib_migrations,
+    timestamp.system_time(),
+    lib_name,
+  ))
+  let assert Ok(last_migration) = list.last(lib_migrations)
+
+  let new_config =
+    config.Config(
+      ..migration_engine.config,
+      migrations: config.MigrationsConfig(
+        ..migration_engine.config.migrations,
+        dependencies: {
+          migration_engine.config.migrations.dependencies
+          |> list.key_set(
+            lib_name,
+            last_migration |> migrations_utils.format_migration_name,
+          )
+        },
+      ),
     )
-  // TODO : update dependencies array
+
+  config.write_config(new_config)
+  |> result.replace_error(types.FileError("priv/cigogne.toml"))
 }
 
 fn remove_lib(
   migration_engine: MigrationEngine,
   lib_name: String,
 ) -> Result(Nil, types.MigrateError) {
-  todo
+  let opposite_migrations =
+    migration_engine.files
+    |> list.filter(fn(mig) { mig.name == lib_name })
+    |> list.map(fn(mig) {
+      types.Migration(
+        ..mig,
+        queries_up: mig.queries_down,
+        queries_down: mig.queries_up,
+      )
+    })
+    |> list.reverse()
+
+  use _included_file <- result.try(fs.merge_migrations(
+    migration_engine.config.migrations,
+    opposite_migrations,
+    timestamp.system_time(),
+    "remove_" <> lib_name,
+  ))
+
+  let new_config =
+    config.Config(
+      ..migration_engine.config,
+      migrations: config.MigrationsConfig(
+        ..migration_engine.config.migrations,
+        dependencies: {
+          migration_engine.config.migrations.dependencies
+          |> list.filter(fn(dep) { dep.0 == lib_name })
+        },
+      ),
+    )
+
+  config.write_config(new_config)
+  |> result.replace_error(types.FileError("priv/cigogne.toml"))
 }
 
 /// Apply a migration to the database.
