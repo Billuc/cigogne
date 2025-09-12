@@ -1,3 +1,4 @@
+import cigogne/config
 import cigogne/internal/database
 import cigogne/internal/fs
 import cigogne/internal/migrations_utils
@@ -23,7 +24,7 @@ const set_hash_migration = "UPDATE _migrations SET sha256 = $1 WHERE name = $2 A
 
 const drop_hash_default_migration = "ALTER TABLE _migrations ALTER COLUMN sha256 DROP DEFAULT;"
 
-pub fn is_v3_applied(
+fn is_v3_applied(
   db_data: database.DatabaseData,
 ) -> Result(Bool, types.MigrateError) {
   pog.query(get_migrations_table_columns_query)
@@ -35,7 +36,10 @@ pub fn is_v3_applied(
   })
 }
 
-pub fn to_v3(db_data: database.DatabaseData) -> Result(Nil, types.MigrateError) {
+fn to_v3(
+  db_data: database.DatabaseData,
+  app_name: String,
+) -> Result(Nil, types.MigrateError) {
   use is_applied <- result.try(is_v3_applied(db_data))
   io.println("Is v3 already applied ? " <> is_applied |> bool.to_string)
   use <- bool.guard(is_applied, Ok(Nil))
@@ -43,7 +47,9 @@ pub fn to_v3(db_data: database.DatabaseData) -> Result(Nil, types.MigrateError) 
   use _ <- result.try(create_hash_column(db_data.connection))
 
   use migration_files <- result.try(
-    fs.get_migrations(types.MigrationFileConfig("", "migrations")),
+    fs.get_migrations(
+      config.MigrationsConfig(app_name, option.Some("migrations"), []),
+    ),
   )
   use applied_migrations <- result.try(database.get_applied_migrations(db_data))
 
@@ -101,16 +107,21 @@ fn set_hash(
 }
 
 pub fn main() {
-  let conn_config =
-    types.ConnectionConfig(types.EnvVar, "public", "_migrations")
-  use db_data <- result.try(database.init(conn_config))
-  io.println(
-    "Connected to database at URL " <> db_data.db_url |> option.unwrap("None"),
-  )
+  let assert Ok(app_name) = config.get_app_name()
+  let config =
+    config.Config(
+      config.EnvVarConfig,
+      config.MigrationTableConfig(
+        option.Some("public"),
+        option.Some("migrations"),
+      ),
+      config.MigrationsConfig(app_name, option.Some("migrations"), []),
+    )
+  let assert Ok(db_data) = database.init(config)
+  io.println("Connected to database")
 
-  case to_v3(db_data) {
+  case to_v3(db_data, app_name) {
     Ok(_) -> io.println("Good to go !")
     Error(err) -> types.print_migrate_error(err)
   }
-  |> Ok
 }

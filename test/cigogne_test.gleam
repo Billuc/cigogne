@@ -10,7 +10,7 @@ pub fn main() {
 }
 
 pub fn new_migration_test() {
-  let priv_test_folder = "priv_test"
+  let priv_test_folder = "priv/test"
   let test_migrations_folder = priv_test_folder <> "/test_migrations"
 
   let assert Ok(True) = simplifile.is_directory(priv_test_folder)

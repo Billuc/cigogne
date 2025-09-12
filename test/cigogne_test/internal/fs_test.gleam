@@ -1,22 +1,25 @@
+import cigogne/config
 import cigogne/internal/fs
 import cigogne/internal/migrations_utils
 import cigogne/types
 import gleam/list
+import gleam/option
 import gleam/string
 import gleam/time/timestamp
 import simplifile
 
-const migrations_folder = "priv_test/migrations"
+const migrations_folder = "test/migrations"
 
 pub fn simplifile_read_directory_test() {
-  let assert Ok(migs) = simplifile.read_directory(migrations_folder)
+  let assert Ok(migs) = simplifile.read_directory("priv/" <> migrations_folder)
 
   assert list.sort(migs, string.compare)
     == ["20240101123246-Test1.sql", "20240922065413-Test2.sql"]
 }
 
 pub fn get_migrations_test() {
-  let config = types.MigrationFileConfig("", migrations_folder)
+  let config =
+    config.MigrationsConfig("cigogne", option.Some(migrations_folder), [])
   let assert Ok(migs) = fs.get_migrations(config)
 
   let sorted_migs =
@@ -48,35 +51,24 @@ pub fn get_migrations_test() {
     == "54fc9d43672c5726d2165d33f7a20b596f061de2237f036b937b2afb19d9dcb8"
 }
 
-pub fn read_schema_file_test() {
-  let assert Ok(result) = fs.read_schema_file("priv_test/sql.schema")
-  assert string.starts_with(result, "my test schema")
-}
-
-pub fn write_schema_file_test() {
-  let path = "priv_test/test.schema"
-  let assert Ok(_) = fs.write_schema_file(path, "this is a test")
-  let result_read = fs.read_schema_file(path)
-
-  let assert Ok(_) = simplifile.delete(path)
-
-  let assert Ok(result_read) = result_read
-  assert result_read == "this is a test"
-}
-
 pub fn create_new_migration_file_test() {
   let assert Ok(timestamp) = timestamp.parse_rfc3339("2024-11-17T18:36:41Z")
   let non_existing_folder = migrations_folder <> "/new"
-  let config = types.MigrationFileConfig("", non_existing_folder)
+  let config =
+    config.MigrationsConfig("cigogne", option.Some(non_existing_folder), [])
 
   let _ = simplifile.delete(non_existing_folder)
 
   let assert Ok(path) =
     fs.create_new_migration_file(config, timestamp, "MyNewMigration")
 
-  assert path == non_existing_folder <> "/20241117183641-MyNewMigration.sql"
+  assert path
+    |> string.ends_with(
+      "priv/" <> non_existing_folder <> "/20241117183641-MyNewMigration.sql",
+    )
 
-  let assert Ok(exists) = simplifile.is_directory(non_existing_folder)
+  let assert Ok(exists) =
+    simplifile.is_directory("priv/" <> non_existing_folder)
   assert exists
   let assert Ok(content) = simplifile.read(path)
 
@@ -86,12 +78,13 @@ pub fn create_new_migration_file_test() {
 
 --- migration:end"
 
-  let _ = simplifile.delete(non_existing_folder)
+  let assert Ok(_) = simplifile.delete("priv/" <> non_existing_folder)
 }
 
 pub fn create_new_migration_returns_error_if_name_too_long_test() {
   let assert Ok(timestamp) = timestamp.parse_rfc3339("2024-11-17T18:36:41Z")
-  let config = types.MigrationFileConfig("", migrations_folder)
+  let config =
+    config.MigrationsConfig("cigogne", option.Some(migrations_folder), [])
 
   let assert Error(err) =
     fs.create_new_migration_file(config, timestamp, string.repeat("a", 256))
