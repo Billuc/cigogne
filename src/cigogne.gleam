@@ -103,8 +103,11 @@ pub fn new_migration(
 }
 
 pub fn update_config(config: config.Config) -> Result(Nil, types.MigrateError) {
-  config.write_config(config)
-  |> result.replace_error(types.FileError("priv/cigogne.toml"))
+  use _ <- result.map(
+    config.write_config(config)
+    |> result.replace_error(types.FileError("priv/cigogne.toml")),
+  )
+  io.println("Updated config file at priv/cigogne.toml")
 }
 
 /// Apply the next migration that wasn't applied yet.
@@ -167,6 +170,7 @@ pub fn include_lib(migration_engine: MigrationEngine, lib_name: String) {
     config.parse_config(lib_name)
     |> result.replace_error(types.MissingDependencyError(lib_name)),
   )
+
   use lib_migrations <- result.try(fs.get_migrations(lib_config.migrations))
   let last_migration_for_dep =
     migration_engine.config.migrations.dependencies |> list.key_find(lib_name)
@@ -181,12 +185,13 @@ pub fn include_lib(migration_engine: MigrationEngine, lib_name: String) {
       |> list.drop(1)
   }
 
-  use _included_file <- result.try(fs.merge_migrations(
+  use included_file <- result.try(fs.merge_migrations(
     migration_engine.config.migrations,
     lib_migrations,
     timestamp.system_time(),
     lib_name,
   ))
+  io.println("Created migration at " <> included_file)
   let assert Ok(last_migration) = list.last(lib_migrations)
 
   let new_config =
@@ -224,12 +229,18 @@ fn remove_lib(
     })
     |> list.reverse()
 
-  use _included_file <- result.try(fs.merge_migrations(
+  use <- bool.guard(
+    list.is_empty(opposite_migrations),
+    Error(types.MissingDependencyError(lib_name)),
+  )
+
+  use included_file <- result.try(fs.merge_migrations(
     migration_engine.config.migrations,
     opposite_migrations,
     timestamp.system_time(),
     "remove_" <> lib_name,
   ))
+  io.println("Created migration at " <> included_file)
 
   let new_config =
     config.Config(
@@ -238,10 +249,12 @@ fn remove_lib(
         ..migration_engine.config.migrations,
         dependencies: {
           migration_engine.config.migrations.dependencies
-          |> list.filter(fn(dep) { dep.0 == lib_name })
+          |> list.filter(fn(dep) { dep.0 != lib_name })
         },
       ),
     )
+
+  echo new_config
 
   config.write_config(new_config)
   |> result.replace_error(types.FileError("priv/cigogne.toml"))

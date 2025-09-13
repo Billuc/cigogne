@@ -17,18 +17,28 @@ const default_migration_folder = "migrations"
 pub fn get_migrations(
   config: config.MigrationsConfig,
 ) -> Result(List(types.Migration), types.MigrateError) {
-  use migrations_folder <- result.try(create_migration_folder(
-    config.application_name,
-    config.migration_folder |> option.unwrap(default_migration_folder),
-  ))
+  use priv_dir <- result.try(
+    application.priv_directory(config.application_name)
+    |> result.replace_error(types.FileError(config.application_name <> "/priv")),
+  )
+  let migrations_folder =
+    priv_dir
+    <> "/"
+    <> config.migration_folder |> option.unwrap(default_migration_folder)
 
-  use files <- result.try(
-    simplifile.read_directory(migrations_folder)
-    |> result.replace_error(types.FileError(migrations_folder <> "/*.sql")),
-  )
-  read_migration_files(
-    files |> list.map(fn(filename) { migrations_folder <> "/" <> filename }),
-  )
+  case simplifile.is_directory(migrations_folder) {
+    Ok(False) -> Ok([])
+    Error(_) -> Error(types.FileError(migrations_folder <> "/*.sql"))
+    Ok(True) -> {
+      use files <- result.try(
+        simplifile.read_directory(migrations_folder)
+        |> result.replace_error(types.FileError(migrations_folder <> "/*.sql")),
+      )
+      read_migration_files(
+        files |> list.map(fn(filename) { migrations_folder <> "/" <> filename }),
+      )
+    }
+  }
 }
 
 fn read_migration_files(
@@ -82,7 +92,6 @@ pub fn create_new_migration_file(
 ) -> Result(String, types.MigrateError) {
   use name <- result.try(migrations_utils.check_name(name))
   use migrations_folder <- result.try(create_migration_folder(
-    config.application_name,
     config.migration_folder |> option.unwrap(default_migration_folder),
   ))
 
@@ -107,13 +116,9 @@ pub fn create_new_migration_file(
 }
 
 fn create_migration_folder(
-  application_name: String,
   migrations_folder: String,
 ) -> Result(String, types.MigrateError) {
-  let folder_path =
-    application.priv_directory(application_name) |> result.unwrap("priv")
-    <> "/"
-    <> migrations_folder
+  let folder_path = "priv/" <> migrations_folder
 
   simplifile.create_directory_all(folder_path)
   |> result.replace_error(types.CreateFolderError(migrations_folder))
@@ -133,7 +138,6 @@ pub fn merge_migrations(
   )
 
   use migrations_folder <- result.try(create_migration_folder(
-    config.application_name,
     config.migration_folder |> option.unwrap(default_migration_folder),
   ))
 

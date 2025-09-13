@@ -34,12 +34,10 @@ fn read_config_file(folder: String) -> Result(String, Nil) {
 }
 
 pub fn write_config(config: Config) -> Result(Nil, Nil) {
-  use priv_dir <- result.try(application.priv_directory(
-    config.migrations.application_name,
-  ))
-
-  let filename = priv_dir <> "/cigogne.toml"
-  simplifile.write(filename, print_config(config))
+  simplifile.create_directory_all("priv")
+  |> result.try(fn(_) {
+    simplifile.write("priv/cigogne.toml", print_config(config))
+  })
   |> result.replace_error(Nil)
 }
 
@@ -307,11 +305,4 @@ fn print_option_int(
     option.Some(v) -> name <> " = " <> int.to_string(v) <> "\n"
     option.None -> "# " <> name <> " = " <> int.to_string(default) <> "\n"
   }
-}
-
-pub fn init_config(application_name: String) -> Result(Nil, Nil) {
-  use app_priv <- result.try(application.priv_directory(application_name))
-
-  simplifile.write(app_priv <> "/cigogne.toml", print_config(default_config))
-  |> result.replace_error(Nil)
 }
