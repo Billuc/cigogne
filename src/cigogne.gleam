@@ -26,20 +26,49 @@ pub opaque type MigrationEngine {
 
 pub fn main() {
   let args = argv.load().arguments
-  use cli_action <- result.try(cli.get_action(args))
+  let assert Ok(application_name) = config.get_app_name()
+  let assert Ok(cigogne_config) = config.parse_config(application_name)
+  use cli_action <- result.try(cli.get_action(application_name, args))
 
   case cli_action {
-    cli.NewMigration(migrations:, name:) -> new_migration(migrations, name)
-    cli.ShowMigrations(config:) -> create_engine(config) |> result.map(show)
+    cli.NewMigration(migrations:, name:) ->
+      cigogne_config.migrations
+      |> config.merge_migrations_config(migrations)
+      |> new_migration(name)
+    cli.ShowMigrations(config:) ->
+      cigogne_config
+      |> config.merge(config)
+      |> create_engine()
+      |> result.map(show)
     cli.MigrateUp(config:, count:) ->
-      create_engine(config) |> result.try(apply_n(_, count))
+      cigogne_config
+      |> config.merge(config)
+      |> create_engine()
+      |> result.try(apply_n(_, count))
     cli.MigrateDown(config:, count:) ->
-      create_engine(config) |> result.try(rollback_n(_, count))
-    cli.MigrateUpAll(config:) -> create_engine(config) |> result.try(apply_all)
+      cigogne_config
+      |> config.merge(config)
+      |> create_engine()
+      |> result.try(rollback_n(_, count))
+    cli.MigrateUpAll(config:) ->
+      cigogne_config
+      |> config.merge(config)
+      |> create_engine()
+      |> result.try(apply_all)
     cli.IncludeLib(config:, lib_name:) ->
-      create_engine(config) |> result.try(include_lib(_, lib_name))
+      cigogne_config
+      |> config.merge(config)
+      |> create_engine()
+      |> result.try(include_lib(_, lib_name))
     cli.RemoveLib(config:, lib_name:) ->
-      create_engine(config) |> result.try(remove_lib(_, lib_name))
+      cigogne_config
+      |> config.merge(config)
+      |> create_engine()
+      |> result.try(remove_lib(_, lib_name))
+    cli.UpdateConfig(config:) ->
+      cigogne_config
+      |> config.merge(config)
+      |> update_config()
   }
   |> result.map_error(types.print_migrate_error)
 }
@@ -71,6 +100,11 @@ pub fn new_migration(
     name,
   ))
   io.println("Migration file created : " <> path)
+}
+
+pub fn update_config(config: config.Config) -> Result(Nil, types.MigrateError) {
+  config.write_config(config)
+  |> result.replace_error(types.FileError("priv/cigogne.toml"))
 }
 
 /// Apply the next migration that wasn't applied yet.

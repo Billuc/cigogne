@@ -193,7 +193,7 @@ fn merge_migration_table_config(
   )
 }
 
-fn merge_migrations_config(
+pub fn merge_migrations_config(
   config: MigrationsConfig,
   to_merge: MigrationsConfig,
 ) -> MigrationsConfig {

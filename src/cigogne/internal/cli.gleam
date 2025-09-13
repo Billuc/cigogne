@@ -1,7 +1,6 @@
 import cigogne/config
 import cigogne/internal/cli_lib
 import gleam/option
-import gleam/result
 
 pub type CliActions {
   MigrateUp(config: config.Config, count: Int)
@@ -11,11 +10,13 @@ pub type CliActions {
   NewMigration(migrations: config.MigrationsConfig, name: String)
   IncludeLib(config: config.Config, lib_name: String)
   RemoveLib(config: config.Config, lib_name: String)
+  UpdateConfig(config: config.Config)
 }
 
-pub fn get_action(args: List(String)) -> Result(CliActions, Nil) {
-  use application_name <- result.try(config.get_app_name())
-
+pub fn get_action(
+  application_name: String,
+  args: List(String),
+) -> Result(CliActions, Nil) {
   cli_lib.command("cigogne")
   |> cli_lib.with_description("Cigogne CLI")
   |> cli_lib.add_action(migrate_up_action(application_name))
@@ -25,6 +26,7 @@ pub fn get_action(args: List(String)) -> Result(CliActions, Nil) {
   |> cli_lib.add_action(migrate_up_all_action(application_name))
   |> cli_lib.add_action(include_lib_action(application_name))
   |> cli_lib.add_action(remove_lib_action(application_name))
+  |> cli_lib.add_action(update_config_action(application_name))
   |> cli_lib.run(args)
 }
 
@@ -136,6 +138,17 @@ fn remove_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
         cli_lib.required(cli_lib.string, ""),
       )
       cli_lib.options(RemoveLib(config:, lib_name:))
+    },
+  )
+}
+
+fn update_config_action(application_name: String) -> cli_lib.Action(CliActions) {
+  cli_lib.create_action(
+    ["update_config"],
+    "Create or update cigogne's config for your project",
+    {
+      use config <- cli_lib.then_action(config_decoder(application_name))
+      cli_lib.options(UpdateConfig(config:))
     },
   )
 }
