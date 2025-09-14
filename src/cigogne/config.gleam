@@ -1,3 +1,5 @@
+import cigogne/fs
+import cigogne/internal/utils
 import gleam/dict
 import gleam/erlang/application
 import gleam/int
@@ -6,40 +8,7 @@ import gleam/option
 import gleam/result
 import gleam/string
 import pog
-import simplifile
 import tom
-
-pub fn get_app_name() -> Result(String, Nil) {
-  use content <- result.try(
-    simplifile.read("gleam.toml")
-    |> result.replace_error(Nil),
-  )
-  use toml <- result.try(tom.parse(content) |> result.replace_error(Nil))
-
-  tom.get_string(toml, ["name"]) |> result.replace_error(Nil)
-}
-
-pub fn parse_config(application_name: String) -> Result(Config, Nil) {
-  use priv_dir <- result.map(application.priv_directory(application_name))
-
-  read_config_file(priv_dir)
-  |> result.map(parse_config_file(_, application_name))
-  |> result.unwrap(default_config)
-}
-
-fn read_config_file(folder: String) -> Result(String, Nil) {
-  let filename = folder <> "/cigogne.toml"
-  simplifile.read(filename)
-  |> result.replace_error(Nil)
-}
-
-pub fn write_config(config: Config) -> Result(Nil, Nil) {
-  simplifile.create_directory_all("priv")
-  |> result.try(fn(_) {
-    simplifile.write("priv/cigogne.toml", print_config(config))
-  })
-  |> result.replace_error(Nil)
-}
 
 pub type Config {
   Config(
@@ -55,16 +24,6 @@ pub const default_config = Config(
   default_migrations_config,
 )
 
-fn parse_config_file(content: String, application_name: String) -> Config {
-  let toml = tom.parse(content) |> result.unwrap(dict.new())
-
-  let database = parse_db_section(toml)
-  let migration_table = parse_migration_table_section(toml)
-  let migrations = parse_migrations_section(toml, application_name)
-
-  Config(database:, migration_table:, migrations:)
-}
-
 pub type DatabaseConfig {
   UrlDbConfig(url: String)
   DetailedDbConfig(
@@ -78,7 +37,81 @@ pub type DatabaseConfig {
   ConnectionDbConfig(connection: pog.Connection)
 }
 
-const default_db_config = EnvVarConfig
+pub const default_db_config = EnvVarConfig
+
+pub type MigrationTableConfig {
+  MigrationTableConfig(
+    schema: option.Option(String),
+    table: option.Option(String),
+  )
+}
+
+pub const default_mig_table_config = MigrationTableConfig(
+  option.None,
+  option.None,
+)
+
+pub type MigrationsConfig {
+  MigrationsConfig(
+    application_name: String,
+    migration_folder: option.Option(String),
+    dependencies: List(#(String, String)),
+  )
+}
+
+pub const default_migrations_config = MigrationsConfig(
+  "cigogne",
+  option.None,
+  [],
+)
+
+const default_migrations_folder = "migrations"
+
+pub type ConfigError {
+  AppNameError
+  AppNotFound(name: String)
+  ConfigFileNotFound(path: String)
+  FSError(error: fs.FSError)
+}
+
+pub fn get_app_name() -> Result(String, ConfigError) {
+  use file <- utils.try_or(fs.read_file("gleam.toml"), AppNameError)
+  use toml <- utils.try_or(tom.parse(file.content), AppNameError)
+
+  tom.get_string(toml, ["name"])
+  |> result.replace_error(AppNameError)
+}
+
+pub fn get(application_name: String) -> Result(Config, ConfigError) {
+  use priv_dir <- result.map(
+    application.priv_directory(application_name)
+    |> result.replace_error(AppNotFound(application_name)),
+  )
+  let filename = priv_dir <> "/cigogne.toml"
+
+  fs.read_file(filename)
+  |> result.replace_error(ConfigFileNotFound(filename))
+  |> result.map(fn(file) { parse_config_file(file.content, application_name) })
+  |> result.unwrap(default_config)
+}
+
+pub fn write(config: Config) -> Result(Nil, ConfigError) {
+  fs.create_directory("priv")
+  |> result.try(fn(_) {
+    fs.write_file(fs.File("priv/cigogne.toml", print_config(config)))
+  })
+  |> result.map_error(FSError)
+}
+
+fn parse_config_file(content: String, application_name: String) -> Config {
+  let toml = tom.parse(content) |> result.unwrap(dict.new())
+
+  let database = parse_db_section(toml)
+  let migration_table = parse_migration_table_section(toml)
+  let migrations = parse_migrations_section(toml, application_name)
+
+  Config(database:, migration_table:, migrations:)
+}
 
 fn parse_db_section(toml: dict.Dict(String, tom.Toml)) -> DatabaseConfig {
   tom.get_string(toml, ["database", "url"])
@@ -102,15 +135,6 @@ fn parse_db_section(toml: dict.Dict(String, tom.Toml)) -> DatabaseConfig {
   })
 }
 
-pub type MigrationTableConfig {
-  MigrationTableConfig(
-    schema: option.Option(String),
-    table: option.Option(String),
-  )
-}
-
-const default_mig_table_config = MigrationTableConfig(option.None, option.None)
-
 fn parse_migration_table_section(
   toml: dict.Dict(String, tom.Toml),
 ) -> MigrationTableConfig {
@@ -120,16 +144,6 @@ fn parse_migration_table_section(
     tom.get_string(toml, ["migration-table", "table"]) |> option.from_result()
   MigrationTableConfig(schema:, table:)
 }
-
-pub type MigrationsConfig {
-  MigrationsConfig(
-    application_name: String,
-    migration_folder: option.Option(String),
-    dependencies: List(#(String, String)),
-  )
-}
-
-const default_migrations_config = MigrationsConfig("cigogne", option.None, [])
 
 fn parse_migrations_section(
   toml: dict.Dict(String, tom.Toml),
@@ -304,5 +318,24 @@ fn print_option_int(
   case value {
     option.Some(v) -> name <> " = " <> int.to_string(v) <> "\n"
     option.None -> "# " <> name <> " = " <> int.to_string(default) <> "\n"
+  }
+}
+
+pub fn get_migrations_folder(migrations_config: MigrationsConfig) -> String {
+  migrations_config.migration_folder |> option.unwrap(default_migrations_folder)
+}
+
+pub fn get_error_message(error: ConfigError) {
+  case error {
+    AppNameError ->
+      "Couldn't get the application's name !\nAre you in a folder with a gleam.toml file ?"
+    AppNotFound(name:) ->
+      "Could not find an application with name "
+      <> name
+      <> "\nDid you correctly add it to your project ?"
+    ConfigFileNotFound(path:) ->
+      "Could not find this project's config file.\nNote: it should be at "
+      <> path
+    FSError(error:) -> "FS error: " <> fs.get_error_message(error)
   }
 }
