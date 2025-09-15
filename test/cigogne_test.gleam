@@ -1,15 +1,17 @@
 import cigogne
-import cigogne/internal/utils
-import cigogne/types
+import cigogne/config
+import cigogne/migration
+import gleam/option
+import gleam/string
+import gleam/time/timestamp
 import gleeunit
-import gleeunit/should
 import simplifile
 
 pub fn main() {
   gleeunit.main()
 }
 
-pub fn new_migration_test() {
+pub fn simplifile_test() {
   let priv_test_folder = "priv/test"
   let test_migrations_folder = priv_test_folder <> "/test_migrations"
 
@@ -17,20 +19,44 @@ pub fn new_migration_test() {
   let assert Ok(False) = simplifile.is_directory(test_migrations_folder)
 }
 
-pub fn create_zero_migration_test() {
-  let migration = cigogne.create_zero_migration("test_zero", ["abc"], ["def"])
+pub fn read_migrations_test() {
+  let config =
+    config.Config(
+      ..config.default_config,
+      migrations: config.MigrationsConfig(
+        application_name: "cigogne",
+        migration_folder: option.Some("test/migrations"),
+        dependencies: [],
+      ),
+    )
 
-  migration
-  |> should.equal(types.Migration(
-    "",
-    utils.epoch(),
-    "test_zero",
-    ["abc"],
-    ["def"],
-    "BEF57EC7F53A6D40BEB640A780A639C83BC29AC8A9816F1FC6C5C6DCD93C4721",
-  ))
+  let assert Ok(migrations) = cigogne.read_migrations(config)
+  let assert Ok(ts1) = timestamp.parse_rfc3339("2024-01-01T12:32:46Z")
+  let assert Ok(ts2) = timestamp.parse_rfc3339("2024-09-22T06:54:13Z")
 
-  migration
-  |> cigogne.is_zero_migration()
-  |> should.be_true
+  let assert [mig1, mig2] = migrations
+
+  assert mig1.path
+    |> string.ends_with("test/migrations/20240101123246-Test1.sql")
+  assert mig1.timestamp == ts1
+  assert mig1.name == "Test1"
+  assert mig1.queries_up
+    == ["create table todos(id uuid primary key, title text);"]
+  assert mig1.queries_down == ["drop table todos;"]
+  assert mig1.sha256
+    == "2455946910AA23EC45CD6DF7CF526AB0ABAA80CE82B9343C550FA0DB8CE65626"
+
+  assert mig2.path
+    |> string.ends_with("test/migrations/20240922065413-Test2.sql")
+  assert mig2.timestamp == ts2
+  assert mig2.name == "Test2"
+  assert mig2.queries_up
+    == [
+      "create table tags(id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, tag text not null);",
+      "alter table todos add column tag integer references tags(id);",
+    ]
+  assert mig2.queries_down
+    == ["alter table todos drop column tag;", "drop table tags;"]
+  assert mig2.sha256
+    == "54FC9D43672C5726D2165D33F7A20B596F061DE2237F036B937B2AFB19D9DCB8"
 }

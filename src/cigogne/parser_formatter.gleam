@@ -25,12 +25,17 @@ pub type ParserError {
   UnfinishedLiteral(context: String)
   WrongFormat(name: String)
   MigrationError(error: migration.MigrationError)
+  NotASQLFile(filepath: String)
   EmptyPath
 }
 
 pub fn parse(
   migration_file: fs.File,
 ) -> Result(migration.Migration, ParserError) {
+  use <- bool.guard(
+    !string.ends_with(migration_file.path, ".sql"),
+    Error(NotASQLFile(migration_file.path)),
+  )
   use filename_without_ext <- result.try(
     migration_file.path
     |> string.split("/")
@@ -59,7 +64,10 @@ fn parse_fullname(
     string.split_once(fullname, "-")
     |> result.replace_error(WrongFormat(fullname)),
   )
-  use timestamp <- result.try(parse_timestamp(timestamp_str))
+  use timestamp <- result.try(
+    parse_timestamp(timestamp_str)
+    |> result.replace_error(WrongFormat(fullname)),
+  )
   use name <- result.try(
     migration.check_name(name_str)
     |> result.map_error(MigrationError),
@@ -68,13 +76,8 @@ fn parse_fullname(
   Ok(#(timestamp, name))
 }
 
-fn parse_timestamp(
-  timestamp_str: String,
-) -> Result(timestamp.Timestamp, ParserError) {
-  use <- bool.guard(
-    string.length(timestamp_str) != 14,
-    Error(WrongFormat(timestamp_str)),
-  )
+fn parse_timestamp(timestamp_str: String) -> Result(timestamp.Timestamp, Nil) {
+  use <- bool.guard(string.length(timestamp_str) != 14, Error(Nil))
 
   let year = string.slice(timestamp_str, 0, 4) |> int.parse
   let month = string.slice(timestamp_str, 4, 2) |> int.parse
@@ -86,7 +89,6 @@ fn parse_timestamp(
   case year, month, day, hours, minutes, seconds {
     Ok(y), Ok(m), Ok(d), Ok(h), Ok(min), Ok(s) -> {
       calendar.month_from_int(m)
-      |> result.replace_error(WrongFormat(timestamp_str))
       |> result.map(fn(m) {
         timestamp.from_calendar(
           calendar.Date(y, m, d),
@@ -95,7 +97,7 @@ fn parse_timestamp(
         )
       })
     }
-    _, _, _, _, _, _ -> Error(WrongFormat(timestamp_str))
+    _, _, _, _, _, _ -> Error(Nil)
   }
 }
 
@@ -296,5 +298,6 @@ pub fn get_error_message(error: ParserError) -> String {
     WrongFormat(name:) ->
       name
       <> " isn't a valid migration name !\nIt should be YYYYMMDDHHmmss-<NAME>"
+    NotASQLFile(filepath:) -> filepath <> " is not a .sql file"
   }
 }

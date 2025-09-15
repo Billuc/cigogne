@@ -137,10 +137,8 @@ pub fn read_migrations(
       parser_formatter.parse(file) |> result.map_error(ParserError)
     })
 
-  case results |> result.partition() {
-    #(migrations, []) -> Ok(migrations)
-    #(_, errors) -> Error(CompoundError(errors))
-  }
+  utils.get_results_or_errors(results)
+  |> result.map_error(CompoundError)
 }
 
 /// Create a new migration file in the specified folder with the provided name.

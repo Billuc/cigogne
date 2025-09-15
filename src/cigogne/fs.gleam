@@ -1,3 +1,4 @@
+import cigogne/internal/utils
 import gleam/erlang/application
 import gleam/list
 import gleam/result
@@ -61,26 +62,27 @@ pub fn read_directory(path: String) -> Result(List(File), FSError) {
         simplifile.read_directory(path)
         |> result.replace_error(PermissionError(path)),
       )
-      read_files(files |> list.map(fn(filename) { path <> "/" <> filename }))
+
+      files |> list.map(fn(filename) { path <> "/" <> filename }) |> read_files
     }
   }
 }
 
 fn read_files(paths: List(String)) -> Result(List(File), FSError) {
-  let results = {
-    use acc, curr <- list.fold(paths, [])
+  let results =
+    {
+      use acc, curr <- list.fold(paths, [])
 
-    case simplifile.is_file(curr) {
-      Error(_) -> [Error(PermissionError(curr)), ..acc]
-      Ok(False) -> acc
-      Ok(True) -> [read_file(curr), ..acc]
+      case simplifile.is_file(curr) {
+        Error(_) -> [Error(PermissionError(curr)), ..acc]
+        Ok(False) -> acc
+        Ok(True) -> [read_file(curr), ..acc]
+      }
     }
-  }
+    |> list.reverse()
 
-  case results |> result.partition() {
-    #(files, []) -> Ok(files)
-    #(_, errs) -> Error(CompoundError(errs))
-  }
+  utils.get_results_or_errors(results)
+  |> result.map_error(CompoundError)
 }
 
 pub fn get_error_message(error: FSError) -> String {

@@ -122,8 +122,23 @@ pub fn try_or(
 pub fn get_results_or_errors(
   results: List(Result(a, e)),
 ) -> Result(List(a), List(e)) {
-  case result.partition(results) {
-    #(res, []) -> Ok(res)
-    #(_, errs) -> Error(errs)
+  do_get_results_or_errors(results, Ok([]))
+}
+
+fn do_get_results_or_errors(
+  results: List(Result(a, e)),
+  result_so_far: Result(List(a), List(e)),
+) -> Result(List(a), List(e)) {
+  case results, result_so_far {
+    [], Error(errs) -> Error(errs |> list.reverse())
+    [], Ok(vals) -> Ok(vals |> list.reverse())
+    [Error(err), ..rest], Ok(_vals) ->
+      do_get_results_or_errors(rest, Error([err]))
+    [Error(err), ..rest], Error(errs) ->
+      do_get_results_or_errors(rest, Error([err, ..errs]))
+    [Ok(val), ..rest], Ok(vals) ->
+      do_get_results_or_errors(rest, Ok([val, ..vals]))
+    [Ok(_val), ..rest], Error(errs) ->
+      do_get_results_or_errors(rest, Error(errs))
   }
 }

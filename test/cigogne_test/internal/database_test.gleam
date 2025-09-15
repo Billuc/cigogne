@@ -1,6 +1,6 @@
 import cigogne/config
-import cigogne/internal/database
-import cigogne/internal/migrations_utils
+import cigogne/database
+import cigogne/migration
 import envoy
 import gleam/erlang/process
 import gleam/list
@@ -138,14 +138,14 @@ pub fn migration_table_exists_after_zero_test() {
 
 pub fn apply_get_rollback_migrations_test() {
   let mig_1 =
-    migrations_utils.create_zero_migration(
+    migration.create_zero_migration(
       "test1",
       ["create table test.my_table (id serial primary key, name text);"],
       ["drop table test.my_table;"],
     )
 
   let mig_2 =
-    migrations_utils.create_zero_migration(
+    migration.create_zero_migration(
       "test2",
       ["create table test.test_table_2 (id serial primary key);"],
       ["drop table test.test_table_2;"],
