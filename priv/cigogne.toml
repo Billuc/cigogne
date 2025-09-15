@@ -18,5 +18,5 @@
 # table = "_migrations"
 
 [migrations]
-migration_folder = "migrations"
+# migration_folder = "migrations"
 dependencies = []

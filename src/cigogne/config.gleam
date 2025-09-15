@@ -98,7 +98,7 @@ pub fn get(application_name: String) -> Result(Config, ConfigError) {
 pub fn write(config: Config) -> Result(Nil, ConfigError) {
   fs.create_directory("priv")
   |> result.try(fn(_) {
-    fs.write_file(fs.File("priv/cigogne.toml", print_config(config)))
+    fs.write_file(fs.File("priv/cigogne.toml", print(config)))
   })
   |> result.map_error(FSError)
 }
@@ -217,7 +217,7 @@ pub fn merge_migrations_config(
   )
 }
 
-pub fn print_config(config: Config) -> String {
+pub fn print(config: Config) -> String {
   let db_str = print_db_config(config.database)
   let mig_table_str = print_migration_table_config(config.migration_table)
   let mig_str = print_migrations_config(config.migrations)
