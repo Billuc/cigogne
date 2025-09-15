@@ -19,4 +19,5 @@
 
 [migrations]
 # migration_folder = "migrations"
-dependencies = []
+
+[migrations.dependencies]
