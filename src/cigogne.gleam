@@ -26,6 +26,8 @@ pub opaque type MigrationEngine {
   )
 }
 
+/// The CigogneError type contains all the possible errors that can happen in Cigogne.
+/// Some errors are just wrappers around other error types from the different modules which may be hidden.
 pub type CigogneError {
   DatabaseError(error: database.DatabaseError)
   FSError(error: fs.FSError)
@@ -38,6 +40,23 @@ pub type CigogneError {
   CompoundError(errors: List(CigogneError))
 }
 
+/// The main entry point of the Cigogne CLI.
+/// 
+/// Example usage:
+/// ```sh
+/// # List all possible actions
+/// gleam run -m cigogne help
+/// # Create a new migration
+/// gleam run -m cigogne new --name AddUsers
+/// # Apply a single migration
+/// gleam run -m cigogne up
+/// # Apply the next 3 migrations
+/// gleam run -m cigogne up --count 3
+/// # Apply all pending migrations
+/// gleam run -m cigogne up-all
+/// # Rollback a single migration
+/// gleam run -m cigogne down
+/// ```
 pub fn main() {
   let args = argv.load().arguments
   let assert Ok(application_name) = config.get_app_name()
@@ -90,6 +109,24 @@ pub fn main() {
 /// Creates a MigrationEngine from a configuration.
 /// This function will try to connect to the database, create the migrations table if it doesn't exist.
 /// Then it will fetch the applied migrations and the existing migration files and check that hashes do match.
+/// 
+/// Example usage:
+/// ```gleam
+/// import cigogne/config
+/// import cigogne/cigogne
+/// 
+/// pub fn main() {
+///   use app_name <- result.try(config.get_app_name())
+///   use config <- result.try(config.get(app_name))
+///   use engine <- result.try(cigogne.create_engine(config))
+/// 
+///   // Now you can use the engine to apply or rollback migrations
+///   use _ <- result.try(cigogne.apply(engine))
+///   use _ <- result.try(cigogne.rollback(engine))
+///
+///   // Rest of your application logic
+/// }
+/// ```
 pub fn create_engine(
   config: config.Config,
 ) -> Result(MigrationEngine, CigogneError) {
@@ -118,6 +155,8 @@ fn init_db_and_get_applied(
   |> result.map_error(DatabaseError)
 }
 
+/// Read all migration files from the folder specified in the configuration.
+/// It is recommended to use `create_engine` instead of this function directly.
 pub fn read_migrations(
   config: config.Config,
 ) -> Result(List(migration.Migration), CigogneError) {
@@ -141,7 +180,8 @@ pub fn read_migrations(
   |> result.map_error(CompoundError)
 }
 
-/// Create a new migration file in the specified folder with the provided name.
+/// Create a new migration file in the folder specified by the configuration with the provided name.
+/// Note: Migrations are always created in the `priv/<migrations_folder>` folder.
 pub fn new_migration(
   migrations_config: config.MigrationsConfig,
   name: String,
@@ -164,12 +204,17 @@ pub fn new_migration(
   })
 }
 
+/// Update the configuration file at `priv/cigogne.toml` with the provided configuration.
+/// If the file doesn't exist, it will be created.
+/// If it already exists, it will be overwritten.
 pub fn update_config(config: config.Config) -> Result(Nil, CigogneError) {
   use _ <- result.map(config.write(config) |> result.map_error(ConfigError))
   io.println("Updated config file at priv/cigogne.toml")
 }
 
 /// Apply the next migration that wasn't applied yet.
+/// See `create_engine` for an example usage.
+/// See `apply_n` to apply multiple migrations at once.
 pub fn apply(engine: MigrationEngine) -> Result(Nil, CigogneError) {
   engine.non_applied
   |> list.first()
@@ -178,6 +223,8 @@ pub fn apply(engine: MigrationEngine) -> Result(Nil, CigogneError) {
 }
 
 /// Roll back the last applied migration.
+/// See `create_engine` for an example usage.
+/// See `rollback_n` to apply multiple migrations at once.
 pub fn rollback(engine: MigrationEngine) -> Result(Nil, CigogneError) {
   engine.applied
   |> list.drop_while(migration.is_zero_migration)
@@ -223,12 +270,22 @@ pub fn rollback_n(
   }
 }
 
-/// Apply migrations until we reach the last defined migration.
+/// Apply all non-applied migrations.
 pub fn apply_all(engine: MigrationEngine) -> Result(Nil, CigogneError) {
   engine.non_applied
   |> list.try_each(apply_migration(engine, _))
 }
 
+/// Include a library's migrations into your project.
+/// This will create a new migration that applies all migrations from the library that haven't been applied yet.
+/// This will fail if you haven't added the library to your project.
+///
+/// Example usage:
+/// ```sh
+/// gleam add my_lib
+/// gleam run -m cigogne include-lib --lib-name my_lib
+/// # There will be a new migration file created in priv/migrations with name `<timestamp>-my_lib`
+/// ```
 pub fn include_lib(
   migration_engine: MigrationEngine,
   lib_name: String,
@@ -284,7 +341,18 @@ pub fn include_lib(
   config.write(new_config) |> result.map_error(ConfigError)
 }
 
-fn remove_lib(
+/// Remove a library's migrations from your project.
+/// This will create a new migration that applies all the down migrations from the migrations created by include-lib for this library.
+/// This will fail if you haven't included the library yet.
+///
+/// Example usage:
+/// ```sh
+/// gleam add my_lib
+/// gleam run -m cigogne include-lib --lib-name my_lib
+/// gleam run -m cigogne remove-lib --lib-name my_lib
+/// # There will be a new migration file created in priv/migrations with name `<timestamp>-remove_my_lib`
+/// ```
+pub fn remove_lib(
   migration_engine: MigrationEngine,
   lib_name: String,
 ) -> Result(Nil, CigogneError) {
@@ -344,6 +412,10 @@ fn remove_lib(
 }
 
 /// Apply a migration to the database.
+/// It is recommended to use `apply` or `apply_n` instead of this function directly.
+/// It can still be useful if you want to apply a specific migration or a zero migration.
+///
+/// Be careful though as we don't check if the migration has already been applied or not, see `apply_migration_if_not_applied` for this use case.
 pub fn apply_migration(
   engine: MigrationEngine,
   migration: migration.Migration,
@@ -358,6 +430,8 @@ pub fn apply_migration(
 }
 
 /// Roll back a migration from the database.
+/// It is recommended to use `rollback` or `rollback_n` instead of this function directly.
+/// It can still be useful if you want to roll back a specific migration or a zero migration.
 pub fn rollback_migration(
   engine: MigrationEngine,
   migration: migration.Migration,

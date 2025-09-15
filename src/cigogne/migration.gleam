@@ -23,6 +23,7 @@ pub type Migration {
   )
 }
 
+/// Errors that can happen when manipulating migrations
 pub type MigrationError {
   NameTooLongError(name: String)
   NothingToMergeError
@@ -31,6 +32,8 @@ pub type MigrationError {
   CompoundError(errors: List(MigrationError))
 }
 
+/// Create a new migration with the given folder, name and timestamp.
+/// The migration will have empty up and down queries and an empty sha256 hash.
 pub fn new(
   folder: String,
   name: String,
@@ -47,12 +50,11 @@ pub fn new(
       queries_down: [],
       sha256: "",
     )
-  Migration(
-    ..new_migration,
-    path: folder <> "/" <> to_fullname(new_migration) <> ".sql",
-  )
+
+  new_migration |> set_folder(folder)
 }
 
+/// Set the folder of a migration, updating its path accordingly
 pub fn set_folder(migration: Migration, folder: String) {
   Migration(
     ..migration,
@@ -60,6 +62,7 @@ pub fn set_folder(migration: Migration, folder: String) {
   )
 }
 
+/// Check that the provided name is a valid migration name
 pub fn check_name(name: String) -> Result(String, MigrationError) {
   case string.length(name) > max_name_length {
     True -> Error(NameTooLongError(name))
@@ -67,6 +70,7 @@ pub fn check_name(name: String) -> Result(String, MigrationError) {
   }
 }
 
+/// Get the full name of a migration, which is its timestamp followed by its name
 pub fn to_fullname(migration: Migration) -> String {
   format_timestamp(migration.timestamp) <> "-" <> migration.name
 }
@@ -93,11 +97,15 @@ fn int_to_2_chars_string(n: Int) -> String {
   }
 }
 
+/// Compare two migrations
 pub fn compare(migration_a: Migration, migration_b: Migration) -> order.Order {
   timestamp.compare(migration_a.timestamp, migration_b.timestamp)
   |> order.break_tie(string.compare(migration_a.name, migration_b.name))
 }
 
+/// Merge multiple migrations into a single one, concatenating their up and down queries.
+/// The resulting migration will have an empty path and sha256 hash.
+/// The provided timestamp and name will be used for the resulting migration.
 pub fn merge(
   migrations: List(Migration),
   timestamp: timestamp.Timestamp,
@@ -138,6 +146,7 @@ fn do_merge_contents(
   }
 }
 
+/// Find migrations that are in `migrations` but not in `applied`
 pub fn find_non_applied(
   migrations: List(Migration),
   applied: List(Migration),
@@ -145,6 +154,9 @@ pub fn find_non_applied(
   utils.list_difference(migrations, applied, compare)
 }
 
+/// Match a list of migrations usually from the database with a list of migration usually from the filesystem
+/// and ensure their hashes match. This returns migrations from the second list as they are usually more detailed.
+/// This fails it a migration is not found or if a hash does not match.
 pub fn match_migrations(
   elements: List(Migration),
   matches: List(Migration),
@@ -170,7 +182,7 @@ pub fn match_migrations(
   |> result.map(fn(matches) { list.append(zeroes, matches) })
 }
 
-/// Create a "zero" migration that should be applied before the user's migrations
+/// Create a "zero" migration that should be applied before the user's migrations.
 pub fn create_zero_migration(
   name: String,
   queries_up: List(String),
@@ -188,7 +200,7 @@ pub fn create_zero_migration(
   )
 }
 
-/// Checks if a migration is a zero migration (has been created with create_zero_migration)
+/// Checks if a migration is a zero migration (has been created with `create_zero_migration`)
 pub fn is_zero_migration(migration: Migration) -> Bool {
   migration.path == "" && migration.timestamp == utils.epoch()
 }

@@ -10,6 +10,10 @@ import gleam/string
 import pog
 import tom
 
+/// Cigogne's configuration type
+///
+/// It contains all the data that can be found in the `cigogne.toml` file
+/// and a bit more (like the application name).
 pub type Config {
   Config(
     database: DatabaseConfig,
@@ -24,8 +28,11 @@ pub const default_config = Config(
   default_migrations_config,
 )
 
+/// Database configuration options
 pub type DatabaseConfig {
+  /// Use a database URL / connection string to connect
   UrlDbConfig(url: String)
+  /// Use detailed parameters to connect
   DetailedDbConfig(
     host: option.Option(String),
     user: option.Option(String),
@@ -33,12 +40,15 @@ pub type DatabaseConfig {
     port: option.Option(Int),
     name: option.Option(String),
   )
+  /// Use environment variable DATABASE_URL to connect
   EnvVarConfig
+  /// Use an existing pog connection
   ConnectionDbConfig(connection: pog.Connection)
 }
 
 pub const default_db_config = EnvVarConfig
 
+/// Configuration for the migration table
 pub type MigrationTableConfig {
   MigrationTableConfig(
     schema: option.Option(String),
@@ -51,6 +61,7 @@ pub const default_mig_table_config = MigrationTableConfig(
   option.None,
 )
 
+/// Configuration for migrations such as the folder they are in and dependencies
 pub type MigrationsConfig {
   MigrationsConfig(
     application_name: String,
@@ -67,6 +78,7 @@ pub const default_migrations_config = MigrationsConfig(
 
 const default_migrations_folder = "migrations"
 
+/// Possible errors when dealing with the configuration
 pub type ConfigError {
   AppNameError
   AppNotFound(name: String)
@@ -74,6 +86,7 @@ pub type ConfigError {
   FSError(error: fs.FSError)
 }
 
+/// Get the current application's name by reading the gleam.toml file
 pub fn get_app_name() -> Result(String, ConfigError) {
   use file <- utils.try_or(fs.read_file("gleam.toml"), AppNameError)
   use toml <- utils.try_or(tom.parse(file.content), AppNameError)
@@ -82,6 +95,8 @@ pub fn get_app_name() -> Result(String, ConfigError) {
   |> result.replace_error(AppNameError)
 }
 
+/// Get the configuration for the provided application by reading the cigogne.toml file
+/// The configuration file is read from the `priv` directory of the application
 pub fn get(application_name: String) -> Result(Config, ConfigError) {
   use priv_dir <- result.map(
     application.priv_directory(application_name)
@@ -95,6 +110,7 @@ pub fn get(application_name: String) -> Result(Config, ConfigError) {
   |> result.unwrap(default_config)
 }
 
+/// Write the given configuration to the `priv/cigogne.toml` file
 pub fn write(config: Config) -> Result(Nil, ConfigError) {
   fs.create_directory("priv")
   |> result.try(fn(_) {
@@ -167,6 +183,7 @@ fn parse_migrations_section(
   MigrationsConfig(application_name:, migration_folder:, dependencies:)
 }
 
+/// Merge two configurations, with `to_merge` having precedence over `config`
 pub fn merge(config: Config, to_merge: Config) -> Config {
   Config(
     database: merge_database_config(config.database, to_merge.database),
@@ -205,6 +222,7 @@ fn merge_migration_table_config(
   )
 }
 
+/// Merge two migrations configurations, with `to_merge` having precedence over `config`
 pub fn merge_migrations_config(
   config: MigrationsConfig,
   to_merge: MigrationsConfig,
@@ -217,6 +235,7 @@ pub fn merge_migrations_config(
   )
 }
 
+/// Print the configuration as a TOML string
 pub fn print(config: Config) -> String {
   let db_str = print_db_config(config.database)
   let mig_table_str = print_migration_table_config(config.migration_table)
@@ -321,6 +340,8 @@ fn print_option_int(
   }
 }
 
+/// Get the migrations folder from the migrations configuration,
+/// or the default one if none is set
 pub fn get_migrations_folder(migrations_config: MigrationsConfig) -> String {
   migrations_config.migration_folder |> option.unwrap(default_migrations_folder)
 }

@@ -108,7 +108,7 @@ fn new_migration_action(application_name: String) -> cli_lib.Action(CliActions) 
 
 fn include_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
-    ["include_lib"],
+    ["include-lib"],
     "Include migrations from specified library",
     {
       use config <- cli_lib.then_action(config_decoder(application_name))
@@ -126,7 +126,7 @@ fn include_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
 
 fn remove_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
-    ["remove_lib"],
+    ["remove-lib"],
     "Remove migrations from specified library",
     {
       use config <- cli_lib.then_action(config_decoder(application_name))
@@ -144,7 +144,7 @@ fn remove_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
 
 fn update_config_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
-    ["update_config"],
+    ["update-config"],
     "Create or update cigogne's config for your project",
     {
       use config <- cli_lib.then_action(config_decoder(application_name))

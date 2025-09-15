@@ -2,7 +2,6 @@ import gleam/bit_array
 import gleam/crypto
 import gleam/list
 import gleam/order
-import gleam/result
 import gleam/time/calendar
 import gleam/time/timestamp
 

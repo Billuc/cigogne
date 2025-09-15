@@ -110,6 +110,13 @@ fn set_hash(
   })
 }
 
+/// Entry point for the migration to v3 from v1 or v2.
+/// v3 introduces a sha256 column in the _migrations table to ensure
+/// the integrity of applied migrations.
+/// This script will add the column, compute the hash for each applied migration
+/// and set it in the database.
+///
+/// Usage: `gleam run -m cigogne/to_v3`
 pub fn main() {
   let assert Ok(app_name) = config.get_app_name()
   let config =
