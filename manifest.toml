@@ -17,7 +17,6 @@ packages = [
   { name = "pg_types", version = "0.5.0", build_tools = ["rebar3"], requirements = [], otp_app = "pg_types", source = "hex", outer_checksum = "A3023B464AA960BC1628635081E30CCA4F676F2D4C23CCD6179C1C11C9B4A642" },
   { name = "pgo", version = "0.15.0", build_tools = ["rebar3"], requirements = ["backoff", "opentelemetry_api", "pg_types"], otp_app = "pgo", source = "hex", outer_checksum = "4B883D751B8D4247F4D8A6FBAE58EDB6FA9DBC183371299BF84975EE36406388" },
   { name = "pog", version = "4.1.0", build_tools = ["gleam"], requirements = ["exception", "gleam_erlang", "gleam_otp", "gleam_stdlib", "gleam_time", "pgo"], otp_app = "pog", source = "hex", outer_checksum = "E4AFBA39A5FAA2E77291836C9683ADE882E65A06AB28CA7D61AE7A3AD61EBBD5" },
-  { name = "shellout", version = "1.7.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "shellout", source = "hex", outer_checksum = "1BDC03438FEB97A6AF3E396F4ABEB32BECF20DF2452EC9A8C0ACEB7BDDF70B14" },
   { name = "simplifile", version = "2.3.0", build_tools = ["gleam"], requirements = ["filepath", "gleam_stdlib"], otp_app = "simplifile", source = "hex", outer_checksum = "0A868DAC6063D9E983477981839810DC2E553285AB4588B87E3E9C96A7FB4CB4" },
   { name = "tom", version = "2.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_time"], otp_app = "tom", source = "hex", outer_checksum = "74D0C5A3761F7A7D06994755D4D5AD854122EF8E9F9F76A3E7547606D8C77091" },
 ]
@@ -32,6 +31,5 @@ gleam_stdlib = { version = ">= 0.60.0 and < 1.0.0" }
 gleam_time = { version = ">= 1.2.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.6.0 and < 2.0.0" }
 pog = { version = ">= 4.0.0 and < 5.0.0" }
-shellout = { version = ">= 1.7.0 and < 2.0.0" }
 simplifile = { version = ">= 2.2.1 and < 3.0.0" }
 tom = { version = ">= 2.0.0 and < 3.0.0" }

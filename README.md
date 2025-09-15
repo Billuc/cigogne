@@ -18,7 +18,12 @@ As a plus, this integrates really well with the approach provided by [squirrel](
 gleam add --dev cigogne
 ```
 
-Cigogne can also be installed as a regular dependency and used in your project. See documentation about the `cigogne` module to know more.
+Cigogne can also be installed as a regular dependency and used in your project.  
+See the "Usage" section to know more.
+
+> Note: cigogne can now only be used on the Erlang target.  
+> This constraint is both imposed by pog and required to be able to work with libraries.  
+> However, you can still have it in your JS project as a dev dependency and use the CLI.
 
 ## Usage
 

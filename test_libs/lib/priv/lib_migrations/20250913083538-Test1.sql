@@ -1,8 +1,8 @@
 --- migration:up
 create table if not exists books (
-  id: serial primary key,
-  title: text,
-  rating: int,
+    id serial primary key,
+    title text,
+    rating int
 );
 
 --- migration:down
