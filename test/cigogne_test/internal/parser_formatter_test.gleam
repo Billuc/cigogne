@@ -1,6 +1,6 @@
-import cigogne/fs
+import cigogne/internal/fs
+import cigogne/internal/parser_formatter
 import cigogne/migration
-import cigogne/parser_formatter
 import gleam/string
 import gleam/time/timestamp
 

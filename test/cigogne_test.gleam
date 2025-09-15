@@ -1,6 +1,5 @@
 import cigogne
 import cigogne/config
-import cigogne/migration
 import gleam/option
 import gleam/string
 import gleam/time/timestamp

@@ -1,4 +1,4 @@
-import cigogne/fs
+import cigogne/internal/fs
 import gleam/list
 import gleam/string
 import simplifile

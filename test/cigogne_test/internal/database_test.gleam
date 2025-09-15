@@ -1,5 +1,5 @@
 import cigogne/config
-import cigogne/database
+import cigogne/internal/database
 import cigogne/migration
 import envoy
 import gleam/erlang/process

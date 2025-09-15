@@ -1,4 +1,4 @@
-import cigogne/fs
+import cigogne/internal/fs
 import cigogne/internal/utils
 import cigogne/migration
 import gleam/bool

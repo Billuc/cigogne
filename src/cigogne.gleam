@@ -1,11 +1,11 @@
 import argv
 import cigogne/config
-import cigogne/database
-import cigogne/fs
 import cigogne/internal/cli
+import cigogne/internal/database
+import cigogne/internal/fs
+import cigogne/internal/parser_formatter
 import cigogne/internal/utils
 import cigogne/migration
-import cigogne/parser_formatter
 import gleam/bool
 import gleam/io
 import gleam/list
@@ -372,10 +372,22 @@ pub fn rollback_migration(
 }
 
 /// Get all defined migrations in your project.
-pub fn get_migrations(
+pub fn get_all_migrations(engine: MigrationEngine) -> List(migration.Migration) {
+  engine.files
+}
+
+/// Get applied migrations in your project.
+pub fn get_applied_migrations(
   engine: MigrationEngine,
-) -> Result(List(migration.Migration), CigogneError) {
-  engine.files |> Ok
+) -> List(migration.Migration) {
+  engine.applied
+}
+
+/// Get non-applied migrations in your project.
+pub fn get_non_applied_migrations(
+  engine: MigrationEngine,
+) -> List(migration.Migration) {
+  engine.non_applied
 }
 
 fn show(engine: MigrationEngine) -> Nil {

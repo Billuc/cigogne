@@ -1,6 +1,6 @@
 import cigogne
 import cigogne/config
-import cigogne/database
+import cigogne/internal/database
 import cigogne/migration
 import gleam/bool
 import gleam/dynamic/decode
