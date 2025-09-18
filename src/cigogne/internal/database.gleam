@@ -25,7 +25,7 @@ pub type DatabaseError {
   IncorrectConnectionString(conn_string: String)
   ActorStartError(error: actor.StartError)
   PogQueryError(error: pog.QueryError)
-  PogTransactionError(error: pog.TransactionError(String))
+  PogTransactionError(error: pog.TransactionError(DatabaseError))
 }
 
 const check_table_exist = "SELECT table_name, table_schema 
@@ -177,7 +177,7 @@ pub fn apply_migration(
       |> pog.execute(transaction)
       |> result.replace(Nil)
     })
-    |> result.map_error(describe_query_error)
+    |> result.map_error(PogQueryError)
   }
   |> result.map_error(PogTransactionError)
 }
@@ -197,7 +197,48 @@ pub fn rollback_migration(
       |> pog.execute(transaction)
       |> result.replace(Nil)
     })
-    |> result.map_error(describe_query_error)
+    |> result.map_error(PogQueryError)
+  }
+  |> result.map_error(PogTransactionError)
+}
+
+pub fn apply_migration_no_transaction(
+  data: DatabaseData,
+  migration: migration.Migration,
+) -> Result(Nil, DatabaseError) {
+  list.try_each(migration.queries_up, fn(q) {
+    pog.query(q) |> pog.execute(data.connection)
+  })
+  |> result.try(fn(_) {
+    insert_migration_query(data, migration)
+    |> pog.execute(data.connection)
+    |> result.replace(Nil)
+  })
+  |> result.map_error(PogQueryError)
+}
+
+pub fn rollback_migration_no_transaction(
+  data: DatabaseData,
+  migration: migration.Migration,
+) -> Result(Nil, DatabaseError) {
+  list.try_each(migration.queries_down, fn(q) {
+    pog.query(q) |> pog.execute(data.connection)
+  })
+  |> result.try(fn(_) {
+    drop_migration_query(data, migration)
+    |> pog.execute(data.connection)
+    |> result.replace(Nil)
+  })
+  |> result.map_error(PogQueryError)
+}
+
+pub fn transaction(
+  data: DatabaseData,
+  callback: fn(pog.Connection) -> Result(a, DatabaseError),
+) {
+  {
+    use transaction <- pog.transaction(data.connection)
+    callback(transaction)
   }
   |> result.map_error(PogTransactionError)
 }
@@ -286,11 +327,13 @@ fn describe_query_error(error: pog.QueryError) -> String {
   }
 }
 
-fn describe_transaction_error(error: pog.TransactionError(String)) -> String {
+fn describe_transaction_error(
+  error: pog.TransactionError(DatabaseError),
+) -> String {
   case error {
     pog.TransactionQueryError(suberror) -> describe_query_error(suberror)
-    pog.TransactionRolledBack(message) ->
-      "Transaction rolled back : " <> message
+    pog.TransactionRolledBack(error) ->
+      "Transaction rolled back : " <> get_error_message(error)
   }
 }
 
