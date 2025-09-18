@@ -33,7 +33,7 @@ pub fn read_migrations_test() {
   let assert Ok(ts1) = timestamp.parse_rfc3339("2024-01-01T12:32:46Z")
   let assert Ok(ts2) = timestamp.parse_rfc3339("2024-09-22T06:54:13Z")
 
-  let assert [mig1, mig2] = migrations
+  let assert [mig1, mig2] = migrations |> echo
 
   assert mig1.path
     |> string.ends_with("test/migrations/20240101123246-Test1.sql")
