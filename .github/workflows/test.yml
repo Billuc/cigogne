@@ -34,5 +34,7 @@ jobs:
           rebar3-version: "3"
           # elixir-version: "1.15.4"
       - run: gleam deps download
+      - run: pwd
+      - run: ls && ls priv && ls priv/test/migrations
       - run: gleam test
       - run: gleam format --check src test
