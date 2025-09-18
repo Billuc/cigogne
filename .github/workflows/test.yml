@@ -16,9 +16,9 @@ jobs:
         ports:
           - 5432:5432
         env:
-          POSTGRES_PASSWORD: 'mysecretpassword'
-          POSTGRES_USER: 'lbillaud'
-          POSTGRES_DB: 'cigogne_test'
+          POSTGRES_PASSWORD: "mysecretpassword"
+          POSTGRES_USER: "billuc"
+          POSTGRES_DB: "cigogne_test"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -26,7 +26,7 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - run: psql -f test/setup_test_db.sql postgres://lbillaud:mysecretpassword@localhost:5432/cigogne_test
+      - run: psql -f test/setup_test_db.sql postgres://billuc:mysecretpassword@localhost:5432/cigogne_test
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "27.1.2"
