@@ -63,7 +63,10 @@ pub fn read_directory(path: String) -> Result(List(File), FSError) {
         |> result.replace_error(PermissionError(path)),
       )
 
-      files |> list.map(fn(filename) { path <> "/" <> filename }) |> read_files
+      files
+      |> list.sort(string.compare)
+      |> list.map(fn(filename) { path <> "/" <> filename })
+      |> read_files
     }
   }
 }
