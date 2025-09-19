@@ -1,114 +1,102 @@
-import cigogne/internal/migration_parser
-import cigogne/internal/migrations_utils
 import cigogne/internal/utils
-import cigogne/types
+import gleam/erlang/application
 import gleam/list
 import gleam/result
-import gleam/time/timestamp
-import globlin
-import globlin_fs
+import gleam/string
 import simplifile
 
-pub fn get_migrations(
-  migrations_folder: String,
-  file_pattern: String,
-) -> Result(List(types.Migration), types.MigrateError) {
-  use _ <- result.try(create_migration_folder(migrations_folder))
-
-  let migration_file_pattern = migrations_folder <> "/" <> file_pattern
-  globlin.new_pattern(migration_file_pattern)
-  |> result.replace_error(types.PatternError(
-    "Something is wrong with the search pattern !",
-  ))
-  |> result.try(fn(pattern) {
-    globlin_fs.glob_from(pattern, migrations_folder, globlin_fs.RegularFiles)
-    |> result.replace_error(types.FileError(migration_file_pattern))
-  })
-  |> result.try(fn(files) {
-    let res =
-      files
-      |> list.map(read_migration_file)
-      |> result.partition
-
-    case res {
-      #(res_ok, []) -> Ok(res_ok)
-      #(_, errs) -> Error(types.CompoundError(errs))
-    }
-  })
+pub type File {
+  File(path: String, content: String)
 }
 
-pub fn read_migration_file(
-  path: String,
-) -> Result(types.Migration, types.MigrateError) {
-  use ts_and_name <- result.try(migration_parser.parse_file_name(path))
-  use content <- result.try(
-    simplifile.read(path) |> result.replace_error(types.FileError(path)),
-  )
+pub type FSError {
+  MissingFolderError(folder: String)
+  MissingFileError(file: String)
+  PermissionError(path: String)
+  CompoundError(errors: List(FSError))
+}
 
-  let sha256 = utils.make_sha256(content)
+pub fn priv(application_name: String) -> Result(String, FSError) {
+  application.priv_directory(application_name)
+  |> result.replace_error(MissingFolderError(application_name <> "/priv"))
+}
 
-  case migration_parser.parse_migration_file(content) {
-    Error(error) -> Error(types.ContentError(path, error))
-    Ok(#(queries_up, queries_down)) ->
-      Ok(types.Migration(
-        path:,
-        queries_up:,
-        queries_down:,
-        timestamp: ts_and_name.0,
-        name: ts_and_name.1,
-        sha256:,
-      ))
+pub fn read_file(path: String) -> Result(File, FSError) {
+  case simplifile.is_file(path) {
+    Ok(False) -> Error(MissingFileError(path))
+    Error(_) -> Error(PermissionError(path))
+    Ok(True) -> {
+      simplifile.read(path)
+      |> result.replace_error(PermissionError(path))
+      |> result.map(fn(content) { File(path:, content:) })
+    }
   }
 }
 
-pub fn read_schema_file(
-  schema_file_path: String,
-) -> Result(String, types.MigrateError) {
-  simplifile.read(schema_file_path)
-  |> result.replace_error(types.FileError(schema_file_path))
+pub fn create_directory(path: String) -> Result(Nil, FSError) {
+  simplifile.create_directory_all(path)
+  |> result.replace_error(PermissionError(path))
 }
 
-pub fn write_schema_file(
-  schema_file_path: String,
-  content: String,
-) -> Result(Nil, types.MigrateError) {
-  simplifile.write(schema_file_path, content)
-  |> result.replace_error(types.FileError(schema_file_path))
-}
-
-pub fn create_new_migration_file(
-  migrations_folder: String,
-  timestamp: timestamp.Timestamp,
-  name: String,
-) -> Result(String, types.MigrateError) {
-  use name <- result.try(migrations_utils.check_name(name))
-  let file_path =
-    migrations_folder
-    <> "/"
-    <> migrations_utils.to_migration_filename(timestamp, name)
-
-  create_migration_folder(migrations_folder)
+pub fn write_file(file: File) -> Result(Nil, FSError) {
+  case simplifile.is_file(file.path) {
+    Error(_) -> Error(PermissionError(file.path))
+    Ok(True) -> Ok(Nil)
+    Ok(False) ->
+      simplifile.create_file(file.path)
+      |> result.replace_error(PermissionError(file.path))
+  }
   |> result.try(fn(_) {
-    simplifile.create_file(file_path)
-    |> result.replace_error(types.FileError(file_path))
+    simplifile.write(file.path, file.content)
+    |> result.replace_error(PermissionError(file.path))
+    |> result.replace(Nil)
   })
-  |> result.try(fn(_) {
-    file_path
-    |> simplifile.write(
-      migration_parser.migration_up_guard
-      <> "\n\n"
-      <> migration_parser.migration_down_guard
-      <> "\n\n"
-      <> migration_parser.migration_end_guard,
-    )
-    |> result.replace_error(types.FileError(file_path))
-  })
-  |> result.map(fn(_) { file_path })
 }
 
-fn create_migration_folder(
-  migrations_folder: String,
-) -> Result(Nil, types.MigrateError) {
-  simplifile.create_directory_all(migrations_folder)
-  |> result.replace_error(types.CreateFolderError(migrations_folder))
+pub fn read_directory(path: String) -> Result(List(File), FSError) {
+  case simplifile.is_directory(path) {
+    Ok(False) -> Error(MissingFolderError(path))
+    Error(_) -> Error(PermissionError(path))
+    Ok(True) -> {
+      use files <- result.try(
+        simplifile.read_directory(path)
+        |> result.replace_error(PermissionError(path)),
+      )
+
+      files
+      |> list.sort(string.compare)
+      |> list.map(fn(filename) { path <> "/" <> filename })
+      |> read_files
+    }
+  }
+}
+
+fn read_files(paths: List(String)) -> Result(List(File), FSError) {
+  let results =
+    {
+      use acc, curr <- list.fold(paths, [])
+
+      case simplifile.is_file(curr) {
+        Error(_) -> [Error(PermissionError(curr)), ..acc]
+        Ok(False) -> acc
+        Ok(True) -> [read_file(curr), ..acc]
+      }
+    }
+    |> list.reverse()
+
+  utils.get_results_or_errors(results)
+  |> result.map_error(CompoundError)
+}
+
+pub fn get_error_message(error: FSError) -> String {
+  case error {
+    CompoundError(errors:) ->
+      "List of errors : [\n"
+      <> errors |> list.map(get_error_message) |> string.join(",\n\t")
+      <> "\n]"
+    MissingFileError(file:) -> "Could not find file at path " <> file
+    MissingFolderError(folder:) ->
+      "Could not find folder at path " <> folder <> "/"
+    PermissionError(path:) -> "Insufficient permission at path " <> path
+  }
 }

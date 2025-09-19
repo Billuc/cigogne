@@ -1,0 +1,24 @@
+# This section will be overridden by eventual users of the library
+[database]
+# If url is defined, it is used to connect to the database
+# url = ""
+
+# If other data in this section is defined, it is used to connect
+# Otherwise, we fallback to the DATABASE_URL environment variable
+# host = "localhost"
+# user = "postgres"
+# /!\ It is not recommended to have your password there
+# password = "postgres"
+# port = 5432
+# name = "postgres"
+
+# This section will be overridden by eventual users of the library
+[migration-table]
+# schema = "public"
+# table = "migrations"
+
+[migrations]
+migration_folder = "lib_migrations"
+
+[migrations.dependencies]
+

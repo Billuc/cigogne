@@ -1,6 +1,6 @@
+import cigogne/config
 import cigogne/internal/database
-import cigogne/internal/migrations_utils
-import cigogne/types
+import cigogne/migration
 import envoy
 import gleam/erlang/process
 import gleam/list
@@ -9,7 +9,7 @@ import gleam/result
 import pog
 
 // Modify these constants to match your local database setup
-const db_user = "lbillaud"
+const db_user = "billuc"
 
 const db_password = option.Some("mysecretpassword")
 
@@ -33,48 +33,65 @@ fn db_url() {
 pub fn init_with_envvar_test() {
   envoy.set("DATABASE_URL", db_url())
 
-  let init_res = database.init(types.EnvVarConfig, schema, migration_table)
+  let config =
+    config.Config(
+      config.EnvVarConfig,
+      config.MigrationTableConfig(
+        option.Some(schema),
+        option.Some(migration_table),
+      ),
+      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+    )
+  let init_res = database.init(config)
 
   envoy.unset("DATABASE_URL")
 
   let assert Ok(init_res) = init_res
 
-  assert init_res.db_url == option.Some(db_url())
-  assert init_res.migrations_table_name == migration_table
-  assert init_res.schema == schema
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
 }
 
 pub fn init_with_url_test() {
-  let init_res =
-    database.init(types.UrlConfig(db_url()), schema, migration_table)
+  let config =
+    config.Config(
+      config.UrlDbConfig(db_url()),
+      config.MigrationTableConfig(
+        option.Some(schema),
+        option.Some(migration_table),
+      ),
+      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+    )
+  let init_res = database.init(config)
 
   let assert Ok(init_res) = init_res
 
-  assert init_res.db_url == option.Some(db_url())
-  assert init_res.migrations_table_name == migration_table
-  assert init_res.schema == schema
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
 }
 
-pub fn init_with_pog_config_test() {
-  let name = process.new_name("cigogne_test")
-  let init_res =
-    database.init(
-      types.PogConfig(
-        pog.default_config(name)
-        |> pog.host("localhost")
-        |> pog.port(5432)
-        |> pog.user(db_user)
-        |> pog.database(db_database),
+pub fn init_with_detailed_config_test() {
+  let config =
+    config.Config(
+      config.DetailedDbConfig(
+        host: option.Some("localhost"),
+        user: option.Some(db_user),
+        password: db_password,
+        port: option.Some(5432),
+        name: option.Some(db_database),
       ),
-      schema,
-      migration_table,
+      config.MigrationTableConfig(
+        option.Some(schema),
+        option.Some(migration_table),
+      ),
+      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
     )
+  let init_res = database.init(config)
 
   let assert Ok(init_res) = init_res
 
-  assert init_res.db_url == option.None
-  assert init_res.migrations_table_name == migration_table
-  assert init_res.schema == schema
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
 }
 
 pub fn init_with_connection_test() {
@@ -82,18 +99,33 @@ pub fn init_with_connection_test() {
   let assert Ok(conf) = pog.url_config(name, db_url())
   let assert Ok(actor) = pog.start(conf)
 
-  let init_res =
-    database.init(types.ConnectionConfig(actor.data), schema, migration_table)
+  let config =
+    config.Config(
+      config.ConnectionDbConfig(actor.data),
+      config.MigrationTableConfig(
+        option.Some(schema),
+        option.Some(migration_table),
+      ),
+      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+    )
+  let init_res = database.init(config)
   let assert Ok(init_res) = init_res
 
-  assert init_res.db_url == option.None
-  assert init_res.migrations_table_name == migration_table
-  assert init_res.schema == schema
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
 }
 
 pub fn migration_table_exists_after_zero_test() {
-  let assert Ok(init_res) =
-    database.init(types.UrlConfig(db_url()), schema, migration_table)
+  let config =
+    config.Config(
+      config.UrlDbConfig(db_url()),
+      config.MigrationTableConfig(
+        option.Some(schema),
+        option.Some(migration_table),
+      ),
+      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+    )
+  let assert Ok(init_res) = database.init(config)
 
   let assert Ok(_) =
     init_res
@@ -106,21 +138,29 @@ pub fn migration_table_exists_after_zero_test() {
 
 pub fn apply_get_rollback_migrations_test() {
   let mig_1 =
-    migrations_utils.create_zero_migration(
+    migration.create_zero_migration(
       "test1",
       ["create table test.my_table (id serial primary key, name text);"],
       ["drop table test.my_table;"],
     )
 
   let mig_2 =
-    migrations_utils.create_zero_migration(
+    migration.create_zero_migration(
       "test2",
       ["create table test.test_table_2 (id serial primary key);"],
       ["drop table test.test_table_2;"],
     )
 
-  let assert Ok(db) =
-    database.init(types.UrlConfig(db_url()), schema, migration_table)
+  let config =
+    config.Config(
+      config.UrlDbConfig(db_url()),
+      config.MigrationTableConfig(
+        option.Some(schema),
+        option.Some(migration_table),
+      ),
+      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+    )
+  let assert Ok(db) = database.init(config)
 
   let assert Ok(_) = database.apply_cigogne_zero(db)
 
