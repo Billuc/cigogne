@@ -209,23 +209,22 @@ pub fn is_zero_migration(migration: Migration) -> Bool {
 pub fn get_error_message(error: MigrationError) -> String {
   case error {
     CompoundError(errors:) ->
-      "Many errors happened : ["
-      <> errors |> list.map(get_error_message) |> string.join(",\n\t")
-      <> "]"
+      "Many migration errors happened: \n  "
+      <> errors |> list.map(get_error_message) |> string.join(",\n  ")
     FileHashChanged(fullname:) ->
       "Hash of file "
       <> fullname
-      <> " has changed !\nDid you modify the file after applying the migration ?"
+      <> " has changed ! Did you modify the file after applying the migration ?"
     MigrationNotFound(fullname:) ->
       "Could not find a matching migration file for "
       <> fullname
-      <> ".\nCheck there is a file named "
+      <> ". Check there is a file named "
       <> fullname
       <> ".sql in your migrations folder."
     NameTooLongError(name:) ->
       "Name "
       <> name
-      <> "is too long !\nMigration names shouldn't exceed 255 characters."
+      <> "is too long ! Migration names shouldn't exceed 255 characters."
     NothingToMergeError -> "Could not merge 0 migrations"
   }
 }

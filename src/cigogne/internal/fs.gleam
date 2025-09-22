@@ -91,9 +91,8 @@ fn read_files(paths: List(String)) -> Result(List(File), FSError) {
 pub fn get_error_message(error: FSError) -> String {
   case error {
     CompoundError(errors:) ->
-      "List of errors : [\n"
-      <> errors |> list.map(get_error_message) |> string.join(",\n\t")
-      <> "\n]"
+      "Many FS errors happened: \n  "
+      <> errors |> list.map(get_error_message) |> string.join("\n  ")
     MissingFileError(file:) -> "Could not find file at path " <> file
     MissingFolderError(folder:) ->
       "Could not find folder at path " <> folder <> "/"

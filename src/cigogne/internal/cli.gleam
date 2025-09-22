@@ -11,6 +11,8 @@ pub type CliActions {
   IncludeLib(config: config.Config, lib_name: String)
   RemoveLib(config: config.Config, lib_name: String)
   UpdateConfig(config: config.Config)
+  InitConfig
+  PrintUnapplied(config: config.Config)
 }
 
 pub fn get_action(
@@ -27,6 +29,8 @@ pub fn get_action(
   |> cli_lib.add_action(include_lib_action(application_name))
   |> cli_lib.add_action(remove_lib_action(application_name))
   |> cli_lib.add_action(update_config_action(application_name))
+  |> cli_lib.add_action(init_config_action())
+  |> cli_lib.add_action(print_unapplied_action(application_name))
   |> cli_lib.run(args)
 }
 
@@ -71,7 +75,7 @@ fn show_migrations_action(
 ) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
     ["show"],
-    "Show the last / currently applied migration",
+    "Show data about the current state of migrations",
     {
       use config <- cli_lib.map_action(config_decoder(application_name))
       ShowMigrations(config)
@@ -80,7 +84,7 @@ fn show_migrations_action(
 }
 
 fn migrate_up_all_action(application_name: String) -> cli_lib.Action(CliActions) {
-  cli_lib.create_action(["up-all"], "Apply all non-applied migrations", {
+  cli_lib.create_action(["all"], "Apply all non-applied migrations", {
     use config <- cli_lib.map_action(config_decoder(application_name))
     MigrateUpAll(config)
   })
@@ -108,7 +112,7 @@ fn new_migration_action(application_name: String) -> cli_lib.Action(CliActions) 
 
 fn include_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
-    ["include-lib"],
+    ["include"],
     "Include migrations from specified library",
     {
       use config <- cli_lib.then_action(config_decoder(application_name))
@@ -126,7 +130,7 @@ fn include_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
 
 fn remove_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
-    ["remove-lib"],
+    ["remove"],
     "Remove migrations from specified library",
     {
       use config <- cli_lib.then_action(config_decoder(application_name))
@@ -144,11 +148,32 @@ fn remove_lib_action(application_name: String) -> cli_lib.Action(CliActions) {
 
 fn update_config_action(application_name: String) -> cli_lib.Action(CliActions) {
   cli_lib.create_action(
-    ["update-config"],
-    "Create or update cigogne's config for your project",
+    ["config", "update"],
+    "Update cigogne's config for your project with provided options",
     {
       use config <- cli_lib.then_action(config_decoder(application_name))
       cli_lib.options(UpdateConfig(config:))
+    },
+  )
+}
+
+fn init_config_action() -> cli_lib.Action(CliActions) {
+  cli_lib.create_action(
+    ["config", "init"],
+    "Create cigogne's config for your project",
+    { cli_lib.options(InitConfig) },
+  )
+}
+
+fn print_unapplied_action(
+  application_name: String,
+) -> cli_lib.Action(CliActions) {
+  cli_lib.create_action(
+    ["print", "unapplied"],
+    "Print all unapplied migrations as SQL strings",
+    {
+      use config <- cli_lib.then_action(config_decoder(application_name))
+      cli_lib.options(PrintUnapplied(config:))
     },
   )
 }

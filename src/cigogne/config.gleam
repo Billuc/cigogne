@@ -359,13 +359,13 @@ pub fn get_migrations_folder(migrations_config: MigrationsConfig) -> String {
 pub fn get_error_message(error: ConfigError) {
   case error {
     AppNameError ->
-      "Couldn't get the application's name !\nAre you in a folder with a gleam.toml file ?"
+      "Couldn't get the application's name ! Are you in a folder with a gleam.toml file ?"
     AppNotFound(name:) ->
       "Could not find an application with name "
       <> name
-      <> "\nDid you correctly add it to your project ?"
+      <> " Did you correctly add it to your project ?"
     ConfigFileNotFound(path:) ->
-      "Could not find this project's config file.\nNote: it should be at "
+      "Could not find this project's config file. Note: it should be at "
       <> path
     FSError(error:) -> "FS error: " <> fs.get_error_message(error)
   }
