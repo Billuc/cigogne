@@ -67,6 +67,7 @@ pub type MigrationsConfig {
     application_name: String,
     migration_folder: option.Option(String),
     dependencies: List(#(String, String)),
+    no_hash_check: option.Option(Bool),
   )
 }
 
@@ -74,6 +75,7 @@ pub const default_migrations_config = MigrationsConfig(
   "cigogne",
   option.None,
   [],
+  option.None,
 )
 
 const default_migrations_folder = "migrations"
@@ -182,7 +184,12 @@ fn parse_migrations_section(
     })
     |> result.unwrap(default_migrations_config.dependencies)
 
-  MigrationsConfig(application_name:, migration_folder:, dependencies:)
+  MigrationsConfig(
+    application_name:,
+    migration_folder:,
+    dependencies:,
+    no_hash_check: option.None,
+  )
 }
 
 /// Merge two configurations, with `to_merge` having precedence over `config`.
@@ -234,6 +241,7 @@ pub fn merge_migrations_config(
     migration_folder: to_merge.migration_folder
       |> option.or(config.migration_folder),
     dependencies: list.append(to_merge.dependencies, config.dependencies),
+    no_hash_check: to_merge.no_hash_check |> option.or(config.no_hash_check),
   )
 }
 

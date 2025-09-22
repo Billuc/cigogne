@@ -9,6 +9,7 @@ import cigogne/migration
 import gleam/bool
 import gleam/io
 import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
 import gleam/time/timestamp
@@ -141,7 +142,11 @@ pub fn create_engine(
   use #(db_data, applied) <- result.try(init_db_and_get_applied(config))
   use files <- result.try(read_migrations(config))
   use applied <- result.try(
-    migration.match_migrations(applied, files)
+    migration.match_migrations(
+      applied,
+      files,
+      config.migrations.no_hash_check |> option.unwrap(False),
+    )
     |> result.map_error(MigrationError),
   )
   let non_applied = migration.find_non_applied(files, applied)
