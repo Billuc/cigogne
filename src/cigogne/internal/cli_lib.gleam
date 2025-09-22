@@ -246,7 +246,7 @@ pub fn run(command: Command(a), args: List(String)) -> Result(a, Nil) {
       |> tuple_to_result()
       |> result.map_error(fn(err) {
         print_errors(err)
-        print_help(command)
+        print_help_action(action)
       })
     Error(_) -> {
       print_help(command)
