@@ -556,8 +556,8 @@ pub fn print_error(error: CigogneError) -> Nil {
 fn get_error_message(error: CigogneError) -> String {
   case error {
     CompoundError(errors:) ->
-      "Many errors happened ! Here is the list:\n"
-      <> errors |> list.map(get_error_message) |> string.join("\n\n")
+      "Many errors happened ! Here is the list:\n  "
+      <> errors |> list.map(get_error_message) |> string.join("\n  ")
     ConfigError(error:) ->
       "Configuration error: " <> config.get_error_message(error)
     DatabaseError(error:) ->
@@ -566,10 +566,10 @@ fn get_error_message(error: CigogneError) -> String {
     LibNotIncluded(name:) ->
       "There were no migrations for library "
       <> name
-      <> " !\nDid you include it ?"
+      <> " ! Did you include it ?"
     MigrationError(error:) ->
       "Migration error: " <> migration.get_error_message(error)
-    NothingToApply -> "There is no migration to apply !\nYou are up-to-date !"
+    NothingToApply -> "There is no migration to apply ! You are up-to-date !"
     NothingToRollback -> "There is no migration to rollback !"
     ParserError(error:) ->
       "Parser error: " <> parser_formatter.get_error_message(error)

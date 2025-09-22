@@ -297,7 +297,7 @@ pub fn get_error_message(error: ParserError) -> String {
     UnfinishedLiteral(context:) -> "Invalid migration: Unfinished " <> context
     WrongFormat(name:) ->
       name
-      <> " isn't a valid migration name !\nIt should be YYYYMMDDHHmmss-<NAME>"
+      <> " isn't a valid migration name ! It should be YYYYMMDDHHmmss-<NAME>"
     NotASQLFile(filepath:) -> filepath <> " is not a .sql file"
   }
 }

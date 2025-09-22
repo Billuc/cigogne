@@ -311,7 +311,7 @@ fn describe_query_error(error: pog.QueryError) -> String {
     pog.ConnectionUnavailable -> "CONNECTION UNAVAILABLE"
     pog.ConstraintViolated(message, _constraint, _detail) -> message
     pog.PostgresqlError(_code, _name, message) ->
-      "Postgresql error : " <> message
+      "Postgresql error: " <> message
     pog.UnexpectedArgumentCount(expected, got) ->
       "Expected "
       <> int.to_string(expected)
@@ -321,8 +321,8 @@ fn describe_query_error(error: pog.QueryError) -> String {
     pog.UnexpectedArgumentType(expected, got) ->
       "Expected argument of type " <> expected <> ", got " <> got <> " !"
     pog.UnexpectedResultType(errs) ->
-      "Unexpected result type ! \n"
-      <> list.map(errs, describe_decode_error) |> string.join("\n")
+      "Unexpected result types !\n  "
+      <> list.map(errs, describe_decode_error) |> string.join("\n  ")
     pog.QueryTimeout -> "Query Timeout"
   }
 }
