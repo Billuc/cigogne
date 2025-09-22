@@ -290,10 +290,8 @@ fn print_help(command: Command(a)) -> Nil {
   io.println("Usage: gleam run -m " <> command.name <> " <action> [<flags>]")
   io.println("")
   io.println("Available actions:")
-  list.each(command.actions |> list.reverse, fn(action) {
-    let action_path = action.action_path |> string.join(" ")
-    io.println("  " <> action_path <> " - " <> action.help)
-  })
+
+  print_actions(command.actions)
 
   io.println("")
   io.println(
@@ -303,6 +301,24 @@ fn print_help(command: Command(a)) -> Nil {
   )
 }
 
+fn print_actions(actions: List(Action(a))) -> Nil {
+  let actions_data =
+    actions
+    |> list.map(fn(a) { #(a.action_path |> string.join(" "), a.help) })
+  let max_action_length =
+    list.fold(actions_data, 0, fn(acc, d) { int.max(acc, string.length(d.0)) })
+  let action_column_width = { max_action_length / 4 } * 4 + 4
+
+  list.each(actions_data |> list.reverse, fn(action) {
+    io.println(
+      "  "
+      <> action.0 |> string.pad_end(action_column_width, " ")
+      <> " - "
+      <> action.1,
+    )
+  })
+}
+
 fn print_help_action(action: Action(a)) -> Nil {
   { action.action_path |> string.join(" ") <> "\n" <> action.help }
   |> box_text(80)
@@ -310,15 +326,29 @@ fn print_help_action(action: Action(a)) -> Nil {
 
   io.println("")
   io.println("Available flags:")
-  list.each(action.decoder.flag_defs, fn(flag) {
+
+  print_flags(action.decoder.flag_defs)
+}
+
+fn print_flags(flags: List(Flag)) -> Nil {
+  let flags_data =
+    flags
+    |> list.map(fn(f) {
+      #(print_flag(f.name) <> " " <> f.type_, f.description, f.aliases)
+    })
+  let max_flag_length =
+    list.fold(flags_data, 0, fn(acc, d) { int.max(acc, string.length(d.0)) })
+  let flag_column_width = { max_flag_length / 4 } * 4 + 4
+
+  list.each(flags_data, fn(flag) {
     {
-      justify_left(print_flag(flag.name) <> " " <> flag.type_, 20)
+      flag.0 |> string.pad_end(flag_column_width, " ")
       <> " - "
-      <> flag.description
+      <> flag.1
       <> "\n"
-      <> string.repeat(" ", 24)
+      <> string.repeat(" ", flag_column_width + 4)
       <> "Aliases: "
-      <> flag.aliases |> list.map(print_flag) |> string.join(", ")
+      <> flag.2 |> list.map(print_flag) |> string.join(", ")
     }
     |> io.println()
   })
@@ -329,13 +359,6 @@ fn print_flag(flag_name: String) {
     0 -> "/!\\ Flag name should not be empty"
     1 -> "-" <> flag_name
     _ -> "--" <> flag_name
-  }
-}
-
-fn justify_left(text: String, width: Int) {
-  case string.length(text) {
-    i if i < width -> text <> string.repeat(" ", width - i)
-    _ -> text
   }
 }
 
