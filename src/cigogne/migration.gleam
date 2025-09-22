@@ -147,7 +147,7 @@ fn do_merge_contents(
 }
 
 /// Find migrations that are in `migrations` but not in `applied`.
-pub fn find_non_applied(
+pub fn find_unapplied(
   migrations: List(Migration),
   applied: List(Migration),
 ) -> List(Migration) {

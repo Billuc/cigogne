@@ -30,7 +30,7 @@ pub opaque type MigrationEngine {
     db_data: database.DatabaseData,
     files: List(migration.Migration),
     applied: List(migration.Migration),
-    non_applied: List(migration.Migration),
+    unapplied: List(migration.Migration),
     config: config.Config,
   )
 }
@@ -61,8 +61,8 @@ pub type CigogneError {
 /// gleam run -m cigogne up
 /// # Apply the next 3 migrations
 /// gleam run -m cigogne up --count 3
-/// # Apply all pending migrations
-/// gleam run -m cigogne up-all
+/// # Apply all unapplied migrations
+/// gleam run -m cigogne all
 /// # Rollback a single migration
 /// gleam run -m cigogne down
 /// ```
@@ -155,9 +155,9 @@ pub fn create_engine(
     )
     |> result.map_error(MigrationError),
   )
-  let non_applied = migration.find_non_applied(files, applied)
+  let unapplied = migration.find_unapplied(files, applied)
 
-  Ok(MigrationEngine(db_data:, applied:, non_applied:, files:, config:))
+  Ok(MigrationEngine(db_data:, applied:, unapplied:, files:, config:))
 }
 
 fn init_db_and_get_applied(
@@ -174,8 +174,8 @@ fn init_db_and_get_applied(
   |> result.map_error(DatabaseError)
 }
 
-/// Read all migration files from the folder specified in the configuration.
-/// It is recommended to use `create_engine` instead of this function directly.
+/// Read all migration files from the folder specified in the configuration .
+/// It is recommended to use `create_engine` and `get_all_migrations` instead of this function.
 /// It can still be useful if you want to read migrations without connecting to the database.
 pub fn read_migrations(
   config: config.Config,
@@ -236,7 +236,7 @@ pub fn update_config(config: config.Config) -> Result(Nil, CigogneError) {
 /// See `create_engine` for an example usage.
 /// See `apply_n` to apply multiple migrations at once.
 pub fn apply(engine: MigrationEngine) -> Result(Nil, CigogneError) {
-  engine.non_applied
+  engine.unapplied
   |> list.first()
   |> result.replace_error(NothingToApply)
   |> result.try(fn(mig) { apply_migrations(engine, [mig]) })
@@ -267,7 +267,7 @@ pub fn apply_n(engine: MigrationEngine, count: Int) -> Result(Nil, CigogneError)
   use <- bool.guard(count <= 0, Ok(Nil))
 
   let migrations_to_apply =
-    engine.non_applied
+    engine.unapplied
     |> list.take(count)
 
   case migrations_to_apply {
@@ -304,7 +304,7 @@ pub fn rollback_n(
   }
 }
 
-/// Apply all non-applied migrations.
+/// Apply all unapplied migrations.
 ///
 /// Example usage:
 /// ```gleam
@@ -312,7 +312,7 @@ pub fn rollback_n(
 /// use _ <- result.try(cigogne.apply_all(engine))
 /// ```
 pub fn apply_all(engine: MigrationEngine) -> Result(Nil, CigogneError) {
-  apply_migrations(engine, engine.non_applied)
+  apply_migrations(engine, engine.unapplied)
 }
 
 /// Include a library's migrations into your project.
@@ -322,7 +322,7 @@ pub fn apply_all(engine: MigrationEngine) -> Result(Nil, CigogneError) {
 /// Example usage:
 /// ```sh
 /// gleam add my_lib
-/// gleam run -m cigogne include-lib --lib-name my_lib
+/// gleam run -m cigogne include --lib-name my_lib
 /// # There will be a new migration file created in priv/migrations with name `<timestamp>-my_lib`
 /// ```
 pub fn include_lib(
@@ -381,14 +381,14 @@ pub fn include_lib(
 }
 
 /// Remove a library's migrations from your project.
-/// This will create a new migration that applies all the down migrations from the migrations created by include-lib for this library.
+/// This will create a new migration that applies all the down migrations from the migrations created by include for this library.
 /// This will fail if you haven't included the library yet.
 ///
 /// Example usage:
 /// ```sh
 /// gleam add my_lib
-/// gleam run -m cigogne include-lib --lib-name my_lib
-/// gleam run -m cigogne remove-lib --lib-name my_lib
+/// gleam run -m cigogne include --lib-name my_lib
+/// gleam run -m cigogne remove --lib-name my_lib
 /// # There will be a new migration file created in priv/migrations with name `<timestamp>-remove_my_lib`
 /// ```
 pub fn remove_lib(
@@ -518,16 +518,16 @@ pub fn get_applied_migrations(
   engine.applied
 }
 
-/// Get non-applied migrations in your project.
-pub fn get_non_applied_migrations(
+/// Get unapplied migrations in your project.
+pub fn get_unapplied_migrations(
   engine: MigrationEngine,
 ) -> List(migration.Migration) {
-  engine.non_applied
+  engine.unapplied
 }
 
 fn show(engine: MigrationEngine) -> Nil {
   let migration_names = engine.applied |> list.map(migration.to_fullname)
-  let to_apply = engine.non_applied |> list.map(migration.to_fullname)
+  let to_apply = engine.unapplied |> list.map(migration.to_fullname)
 
   io.println(
     "Applied migrations: \n - "
@@ -540,7 +540,7 @@ fn show(engine: MigrationEngine) -> Nil {
 fn print_unapplied(migration_engine: MigrationEngine) -> Nil {
   io.print("Unapplied migrations:")
 
-  use unapplied_mig <- list.each(migration_engine.non_applied)
+  use unapplied_mig <- list.each(migration_engine.unapplied)
 
   io.println("\n\n--- == " <> migration.to_fullname(unapplied_mig) <> " ==\n")
   io.println(unapplied_mig.queries_up |> string.join("\n"))

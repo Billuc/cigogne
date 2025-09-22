@@ -126,7 +126,7 @@ pub fn find_non_applied_test() {
   let all = [mig1, mig2, mig3]
   let applied = [mig1, mig3]
 
-  let non_applied = migration.find_non_applied(all, applied)
+  let non_applied = migration.find_unapplied(all, applied)
 
   assert non_applied == [mig2]
 }
@@ -141,7 +141,7 @@ pub fn find_multiple_non_applied_test() {
   let all = [mig1, mig2, mig3]
   let applied = [mig1]
 
-  let non_applied = migration.find_non_applied(all, applied)
+  let non_applied = migration.find_unapplied(all, applied)
 
   assert non_applied == [mig2, mig3]
 }
