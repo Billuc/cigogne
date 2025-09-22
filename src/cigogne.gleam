@@ -111,6 +111,7 @@ pub fn main() {
       cigogne_config
       |> config.merge(config)
       |> update_config()
+    cli.InitConfig -> cigogne_config |> update_config()
   }
   |> result.map_error(print_error)
 }
