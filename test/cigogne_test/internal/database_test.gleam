@@ -40,7 +40,12 @@ pub fn init_with_envvar_test() {
         option.Some(schema),
         option.Some(migration_table),
       ),
-      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+      config.MigrationsConfig(
+        "cigogne",
+        option.Some("test/migrations"),
+        [],
+        option.None,
+      ),
     )
   let init_res = database.init(config)
 
@@ -60,7 +65,12 @@ pub fn init_with_url_test() {
         option.Some(schema),
         option.Some(migration_table),
       ),
-      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+      config.MigrationsConfig(
+        "cigogne",
+        option.Some("test/migrations"),
+        [],
+        option.None,
+      ),
     )
   let init_res = database.init(config)
 
@@ -84,7 +94,12 @@ pub fn init_with_detailed_config_test() {
         option.Some(schema),
         option.Some(migration_table),
       ),
-      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+      config.MigrationsConfig(
+        "cigogne",
+        option.Some("test/migrations"),
+        [],
+        option.None,
+      ),
     )
   let init_res = database.init(config)
 
@@ -106,7 +121,12 @@ pub fn init_with_connection_test() {
         option.Some(schema),
         option.Some(migration_table),
       ),
-      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+      config.MigrationsConfig(
+        "cigogne",
+        option.Some("test/migrations"),
+        [],
+        option.None,
+      ),
     )
   let init_res = database.init(config)
   let assert Ok(init_res) = init_res
@@ -123,7 +143,12 @@ pub fn migration_table_exists_after_zero_test() {
         option.Some(schema),
         option.Some(migration_table),
       ),
-      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+      config.MigrationsConfig(
+        "cigogne",
+        option.Some("test/migrations"),
+        [],
+        option.None,
+      ),
     )
   let assert Ok(init_res) = database.init(config)
 
@@ -158,7 +183,12 @@ pub fn apply_get_rollback_migrations_test() {
         option.Some(schema),
         option.Some(migration_table),
       ),
-      config.MigrationsConfig("cigogne", option.Some("test/migrations"), []),
+      config.MigrationsConfig(
+        "cigogne",
+        option.Some("test/migrations"),
+        [],
+        option.None,
+      ),
     )
   let assert Ok(db) = database.init(config)
 

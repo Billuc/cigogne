@@ -26,6 +26,7 @@ pub fn read_migrations_test() {
         application_name: "cigogne",
         migration_folder: option.Some("test/migrations"),
         dependencies: [],
+        no_hash_check: option.None,
       ),
     )
 

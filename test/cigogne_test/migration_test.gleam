@@ -165,7 +165,7 @@ pub fn match_migrations_test() {
   let migs_from_db = [db_mig1, db_mig3]
 
   let assert Ok(matches) =
-    migration.match_migrations(migs_from_db, migs_from_files)
+    migration.match_migrations(migs_from_db, migs_from_files, False)
 
   assert matches == [mig1, mig3]
 }
@@ -190,7 +190,7 @@ pub fn match_migrations_no_match_test() {
   let migs_from_db = [db_mig1, db_mig_other]
 
   let assert Error(err) =
-    migration.match_migrations(migs_from_db, migs_from_files)
+    migration.match_migrations(migs_from_db, migs_from_files, False)
 
   assert err
     == migration.CompoundError([
@@ -224,12 +224,36 @@ pub fn match_migrations_hash_changed_test() {
   let migs_from_db = [db_mig1, db_mig3]
 
   let assert Error(err) =
-    migration.match_migrations(migs_from_db, migs_from_files)
+    migration.match_migrations(migs_from_db, migs_from_files, False)
 
   assert err
     == migration.CompoundError([
       migration.FileHashChanged(db_mig3 |> migration.to_fullname()),
     ])
+}
+
+pub fn match_migrations_no_hash_check_test() {
+  let assert Ok(ts1) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
+  let assert Ok(ts2) = timestamp.parse_rfc3339("2024-12-17T21:01:00Z")
+  let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
+
+  let mig1 =
+    migration.Migration("path1", ts1, "Mig1", ["up1"], ["down1"], "hash1")
+  let mig2 =
+    migration.Migration("path2", ts2, "Mig2", ["up2"], ["down2"], "hash2")
+  let mig3 =
+    migration.Migration("path3", ts3, "Mig3", ["up3"], ["down3"], "hash3")
+
+  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], "hash456")
+  let db_mig3 = migration.Migration("", ts3, "Mig3", [], [], "hash789")
+
+  let migs_from_files = [mig1, mig2, mig3]
+  let migs_from_db = [db_mig1, db_mig3]
+
+  let assert Ok(matches) =
+    migration.match_migrations(migs_from_db, migs_from_files, True)
+
+  assert matches == [mig1, mig3]
 }
 
 pub fn is_zero_migration_test() {
