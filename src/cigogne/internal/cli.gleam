@@ -12,6 +12,7 @@ pub type CliActions {
   RemoveLib(config: config.Config, lib_name: String)
   UpdateConfig(config: config.Config)
   InitConfig
+  PrintUnapplied(config: config.Config)
 }
 
 pub fn get_action(
@@ -29,6 +30,7 @@ pub fn get_action(
   |> cli_lib.add_action(remove_lib_action(application_name))
   |> cli_lib.add_action(update_config_action(application_name))
   |> cli_lib.add_action(init_config_action())
+  |> cli_lib.add_action(print_unapplied_action(application_name))
   |> cli_lib.run(args)
 }
 
@@ -160,6 +162,19 @@ fn init_config_action() -> cli_lib.Action(CliActions) {
     ["config", "init"],
     "Create cigogne's config for your project",
     { cli_lib.options(InitConfig) },
+  )
+}
+
+fn print_unapplied_action(
+  application_name: String,
+) -> cli_lib.Action(CliActions) {
+  cli_lib.create_action(
+    ["print", "unapplied"],
+    "Print all unapplied migrations as SQL strings",
+    {
+      use config <- cli_lib.then_action(config_decoder(application_name))
+      cli_lib.options(PrintUnapplied(config:))
+    },
   )
 }
 

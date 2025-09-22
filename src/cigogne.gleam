@@ -112,6 +112,11 @@ pub fn main() {
       |> config.merge(config)
       |> update_config()
     cli.InitConfig -> cigogne_config |> update_config()
+    cli.PrintUnapplied(config:) ->
+      cigogne_config
+      |> config.merge(config)
+      |> create_engine()
+      |> result.map(print_unapplied)
   }
   |> result.map_error(print_error)
 }
@@ -522,10 +527,25 @@ pub fn get_non_applied_migrations(
 
 fn show(engine: MigrationEngine) -> Nil {
   let migration_names = engine.applied |> list.map(migration.to_fullname)
+  let to_apply = engine.non_applied |> list.map(migration.to_fullname)
 
   io.println(
-    "Applied migrations: [\n" <> migration_names |> string.join(",\n\t") <> "]",
+    "Applied migrations: [\n\t"
+    <> migration_names |> string.join(",\n\t")
+    <> "\n]\n",
   )
+  io.println(
+    "Migrations to apply: [\n\t" <> to_apply |> string.join(",\n\t") <> "\n]",
+  )
+}
+
+fn print_unapplied(migration_engine: MigrationEngine) -> Nil {
+  io.print("Unapplied migrations:")
+
+  use unapplied_mig <- list.each(migration_engine.non_applied)
+
+  io.println("\n\n--- == " <> migration.to_fullname(unapplied_mig) <> " ==\n")
+  io.println(unapplied_mig.queries_up |> string.join("\n"))
 }
 
 /// Print a MigrateError to the standard error stream.
