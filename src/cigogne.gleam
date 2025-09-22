@@ -530,13 +530,11 @@ fn show(engine: MigrationEngine) -> Nil {
   let to_apply = engine.non_applied |> list.map(migration.to_fullname)
 
   io.println(
-    "Applied migrations: [\n\t"
-    <> migration_names |> string.join(",\n\t")
-    <> "\n]\n",
+    "Applied migrations: \n - "
+    <> migration_names |> string.join("\n - ")
+    <> "\n",
   )
-  io.println(
-    "Migrations to apply: [\n\t" <> to_apply |> string.join(",\n\t") <> "\n]",
-  )
+  io.println("Migrations to apply: \n - " <> to_apply |> string.join("\n - "))
 }
 
 fn print_unapplied(migration_engine: MigrationEngine) -> Nil {
