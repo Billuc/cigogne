@@ -36,9 +36,26 @@ fn is_v3_applied(
   })
 }
 
+fn get_applied_migrations(db_data: database.DatabaseData) {
+  let query = "SELECT createdAt, name FROM _migrations ORDER BY appliedAt ASC;"
+
+  pog.query(query)
+  |> pog.returning({
+    use timestamp <- decode.field(0, pog.timestamp_decoder())
+    use name <- decode.field(1, decode.string)
+    decode.success(#(timestamp, name))
+  })
+  |> pog.execute(db_data.connection)
+  |> result.map_error(database.PogQueryError)
+  |> result.map(fn(returned) {
+    returned.rows
+    |> list.map(fn(data) { migration.Migration("", data.0, data.1, [], [], "") })
+  })
+}
+
 fn to_v3(
   db_data: database.DatabaseData,
-  app_name: String,
+  config: config.Config,
 ) -> Result(Nil, cigogne.CigogneError) {
   use is_applied <- result.try(is_v3_applied(db_data))
   io.println("Is v3 already applied ? " <> is_applied |> bool.to_string)
@@ -46,22 +63,13 @@ fn to_v3(
 
   use _ <- result.try(create_hash_column(db_data.connection))
 
-  use migration_files <- result.try(cigogne.read_migrations(
-    config.Config(
-      ..config.default_config,
-      migrations: config.MigrationsConfig(
-        app_name,
-        option.Some("migrations"),
-        [],
-      ),
-    ),
-  ))
+  use migration_files <- result.try(cigogne.read_migrations(config))
   use applied_migrations <- result.try(
-    database.get_applied_migrations(db_data)
+    get_applied_migrations(db_data)
     |> result.map_error(cigogne.DatabaseError),
   )
   use applied_migrations <- result.try(
-    migration.match_migrations(applied_migrations, migration_files)
+    migration.match_migrations(applied_migrations, migration_files, True)
     |> result.map_error(cigogne.MigrationError),
   )
 
@@ -126,12 +134,17 @@ pub fn main() {
         option.Some("public"),
         option.Some("migrations"),
       ),
-      config.MigrationsConfig(app_name, option.Some("migrations"), []),
+      config.MigrationsConfig(
+        app_name,
+        option.Some("migrations"),
+        [],
+        option.Some(True),
+      ),
     )
   let assert Ok(db_data) = database.init(config)
   io.println("Connected to database")
 
-  case to_v3(db_data, app_name) {
+  case to_v3(db_data, config) {
     Ok(_) -> io.println("Good to go !")
     Error(err) -> cigogne.print_error(err)
   }

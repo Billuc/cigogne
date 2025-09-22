@@ -247,12 +247,18 @@ fn migrations_config_decoder(
     "Folder to store migrations in the priv folder (default: migrations)",
     cli_lib.string,
   )
-
-  cli_lib.options(
-    config.MigrationsConfig(
-      application_name:,
-      migration_folder:,
-      dependencies: [],
-    ),
+  use no_hash_check <- cli_lib.flag(
+    "no-hash-check",
+    [],
+    "",
+    "/!\\ Warning: not recommended /!\\ Disable hash checks on engine creation",
+    cli_lib.bool,
   )
+
+  cli_lib.options(config.MigrationsConfig(
+    application_name:,
+    migration_folder:,
+    dependencies: [],
+    no_hash_check: option.Some(no_hash_check),
+  ))
 }

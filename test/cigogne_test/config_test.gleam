@@ -29,6 +29,7 @@ pub fn merge_config_test() {
         application_name: "cigogne",
         migration_folder: option.None,
         dependencies: [],
+        no_hash_check: option.Some(False),
       ),
     )
   let config_from_file =
@@ -51,6 +52,7 @@ pub fn merge_config_test() {
           #("dep1", "20250915152222-AddUsers"),
           #("dep2", "20250915152323-AddSomeConstraint"),
         ],
+        no_hash_check: option.None,
       ),
     )
 
@@ -76,6 +78,7 @@ pub fn merge_config_test() {
           #("dep1", "20250915152222-AddUsers"),
           #("dep2", "20250915152323-AddSomeConstraint"),
         ],
+        no_hash_check: option.Some(False),
       ),
     )
 }
@@ -101,6 +104,7 @@ pub fn print_config_test() {
           #("dep1", "20250915152222-AddUsers"),
           #("dep2", "20250915152323-AddSomeConstraint"),
         ],
+        no_hash_check: option.Some(False),
       ),
     )
 
@@ -142,6 +146,7 @@ pub fn get_migrations_folder_test() {
       application_name: "cigogne",
       migration_folder: option.Some("custom_migrations"),
       dependencies: [],
+      no_hash_check: option.None,
     )
 
   assert config.get_migrations_folder(test_config) == "migrations"

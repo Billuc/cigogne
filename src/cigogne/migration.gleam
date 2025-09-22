@@ -160,6 +160,7 @@ pub fn find_non_applied(
 pub fn match_migrations(
   elements: List(Migration),
   matches: List(Migration),
+  no_hash_check: Bool,
 ) -> Result(List(Migration), MigrationError) {
   let #(zeroes, elements) = list.split_while(elements, is_zero_migration)
   let matches = utils.find_matches(elements, matches, compare)
@@ -168,7 +169,7 @@ pub fn match_migrations(
     use #(migration, match_res) <- list.map(matches)
     case match_res {
       Ok(match) -> {
-        case migration.sha256 == match.sha256 {
+        case no_hash_check || migration.sha256 == match.sha256 {
           True -> Ok(match)
           False -> Error(FileHashChanged(migration |> to_fullname()))
         }
