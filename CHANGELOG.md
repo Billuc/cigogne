@@ -1,15 +1,18 @@
 # CHANGELOG
 
-## 5.0.0 - 15/09/2025
+## 5.0.0 - 22/09/2025
 
 **Breaking changes**
 
 - Many many changes to the API
+- Removed schema file generation (use pg_dump instead)
 
 **Features**
 
 - Configuration file support
 - Library inclusion support
+- Print unapplied migrations action
+- Improved messages logged to the console
 
 **Notes**
 
