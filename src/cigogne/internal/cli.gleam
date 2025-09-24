@@ -234,11 +234,21 @@ fn database_config_decoder() -> cli_lib.ActionDecoder(config.DatabaseConfig) {
     cli_lib.string,
   )
 
-  cli_lib.options(case url {
-    option.None ->
-      config.DetailedDbConfig(host:, user:, password:, port:, name:)
-    option.Some(url) -> config.UrlDbConfig(url:)
+  url
+  |> option.map(config.UrlDbConfig)
+  |> option.unwrap(case host, user, password, port, name {
+    option.None, option.None, option.None, option.None, option.None ->
+      config.EnvVarConfig
+    _, _, _, _, _ ->
+      config.DetailedDbConfig(
+        host: host,
+        user: user,
+        password: password,
+        port: port,
+        name: name,
+      )
   })
+  |> cli_lib.options()
 }
 
 fn migration_table_config_decoder() -> cli_lib.ActionDecoder(
