@@ -145,6 +145,8 @@ pub fn main() {
 pub fn create_engine(
   config: config.Config,
 ) -> Result(MigrationEngine, CigogneError) {
+  warn_no_hash_check(config)
+
   use #(db_data, applied) <- result.try(init_db_and_get_applied(config))
   use files <- result.try(read_migrations(config))
   use applied <- result.try(
@@ -158,6 +160,16 @@ pub fn create_engine(
   let unapplied = migration.find_unapplied(files, applied)
 
   Ok(MigrationEngine(db_data:, applied:, unapplied:, files:, config:))
+}
+
+fn warn_no_hash_check(config: config.Config) -> Nil {
+  case config.migrations.no_hash_check {
+    option.Some(True) ->
+      io.println(
+        "Warning: no_hash_check is enabled ! Do not use it in production environments as it can lead to inconsistencies between your migration files and the database.",
+      )
+    _ -> Nil
+  }
 }
 
 fn init_db_and_get_applied(
