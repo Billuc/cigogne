@@ -149,6 +149,10 @@ For reference, here is the default configuration file:
 A hash of the migration file is saved to the database when a migration is applied. This way, we can ensure that migrations are not modified after being applied.
 If a migration has been modified, you will get an error as it probably means that you should reset your database to update a migration.
 
+During development, you may want to edit your migrations after they have been applied to your database. In that case, you can use the `--no-hash-check` flag to
+bypass hash checking when you want to apply or rollback migrations. It isn't recommended to use this flag in production, because then your migrations scripts
+don't match what is in your database !
+
 > This feature was introduced in version 3 of cigogne.
 > Note that it requires Gleam >=1.9.0.
 > If you use earlier versions of the library, you can use the to_v3 script to have them filled automatically.

@@ -1,6 +1,7 @@
 import cigogne/internal/utils
 import gleam/bool
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/order
 import gleam/result
@@ -170,7 +171,14 @@ pub fn match_migrations(
     case match_res {
       Ok(match) -> {
         case no_hash_check || migration.sha256 == match.sha256 {
-          True -> Ok(match)
+          True -> {
+            io.println(
+              "Warning: Hash of file "
+              <> to_fullname(migration)
+              <> " has changed, but hash check is disabled.",
+            )
+            Ok(match)
+          }
           False -> Error(FileHashChanged(migration |> to_fullname()))
         }
       }
