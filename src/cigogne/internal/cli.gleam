@@ -286,7 +286,7 @@ fn migrations_config_decoder(
     "no-hash-check",
     [],
     "",
-    "/!\\ Warning: not recommended /!\\ Disable hash checks on engine creation",
+    "/!\\ Warning: not recommended in production /!\\ Disable hash checks on engine creation. Can be useful during development.",
     cli_lib.bool,
   )
 
