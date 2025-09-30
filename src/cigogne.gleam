@@ -157,6 +157,7 @@ pub fn create_engine(
     )
     |> result.map_error(MigrationError),
   )
+  io.println("")
   let unapplied = migration.find_unapplied(files, applied)
 
   Ok(MigrationEngine(db_data:, applied:, unapplied:, files:, config:))
@@ -478,13 +479,13 @@ pub fn apply_migrations(
       database.DatabaseData(..engine.db_data, connection: transaction)
     use migration <- list.try_each(migrations)
 
-    io.println("\nApplying migration " <> migration.to_fullname(migration))
+    io.println("Applying migration " <> migration.to_fullname(migration))
     database.apply_migration_no_transaction(db_data, migration)
   }
   |> result.map_error(DatabaseError)
   |> result.map(fn(_) {
     io.println(
-      "Migrations applied:\n\t"
+      "\nMigrations applied:\n\t"
       <> list.map(migrations, migration.to_fullname) |> string.join("\n\t"),
     )
   })
@@ -506,13 +507,13 @@ pub fn rollback_migrations(
       database.DatabaseData(..engine.db_data, connection: transaction)
     use migration <- list.try_each(migrations)
 
-    io.println("\nRolling back migration " <> migration.to_fullname(migration))
+    io.println("Rolling back migration " <> migration.to_fullname(migration))
     database.rollback_migration_no_transaction(db_data, migration)
   }
   |> result.map_error(DatabaseError)
   |> result.map(fn(_) {
     io.println(
-      "Migrations rolled back:\n\t"
+      "\nMigrations rolled back:\n\t"
       <> list.map(migrations, migration.to_fullname) |> string.join("\n\t"),
     )
   })

@@ -170,8 +170,9 @@ pub fn match_migrations(
     use #(migration, match_res) <- list.map(matches)
     case match_res {
       Ok(match) -> {
-        case no_hash_check || migration.sha256 == match.sha256 {
-          True -> {
+        case migration.sha256 == match.sha256, no_hash_check {
+          True, _ -> Ok(match)
+          False, True -> {
             io.println(
               "Warning: Hash of file "
               <> to_fullname(migration)
@@ -179,7 +180,7 @@ pub fn match_migrations(
             )
             Ok(match)
           }
-          False -> Error(FileHashChanged(migration |> to_fullname()))
+          False, False -> Error(FileHashChanged(migration |> to_fullname()))
         }
       }
       Error(_) -> Error(MigrationNotFound(migration |> to_fullname()))
