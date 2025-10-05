@@ -55,7 +55,7 @@ DROP TABLE users;
 The `--- migration:` comments are used to separate between the queries used for the "up migration" (used when you apply the migration)
 and the "down migration" (used when you rollback the migration).
 
-You are now ready to execute your migration ! The first way of executing your migration is via the command line :
+You are now ready to execute your migration! The first way of executing your migration is via the command line :
 
 ```sh
 # Apply the next migration
@@ -63,7 +63,7 @@ gleam run -m cigogne up
 # Roll back the last applied migration
 gleam run -m cigogne down
 # Apply all migrations not yet applied
-gleam run -m cigogne up-all
+gleam run -m cigogne all
 # Show the applied migration
 gleam run -m cigogne show
 # Create a new migration with name NAME
