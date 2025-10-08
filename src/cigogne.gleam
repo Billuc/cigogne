@@ -50,7 +50,7 @@ pub type CigogneError {
 }
 
 /// The main entry point of the Cigogne CLI.
-/// 
+///
 /// Example usage:
 /// ```sh
 /// # List all possible actions
@@ -66,13 +66,16 @@ pub type CigogneError {
 /// # Rollback a single migration
 /// gleam run -m cigogne down
 /// ```
-pub fn main() {
+pub fn main() -> Nil {
   let args = argv.load().arguments
   let assert Ok(application_name) = config.get_app_name()
   let assert Ok(cigogne_config) = config.get(application_name)
-  use cli_action <- result.try(cli.get_action(application_name, args))
+  let cli_action =
+    cli.get_action(application_name, args)
+    |> result.map_error(fn(_) { cli.UnknownAction })
+    |> result.unwrap_both()
 
-  case cli_action {
+  let outcome = case cli_action {
     cli.NewMigration(migrations:, name:) ->
       cigogne_config.migrations
       |> config.merge_migrations_config(migrations)
@@ -117,24 +120,34 @@ pub fn main() {
       |> config.merge(config)
       |> create_engine()
       |> result.map(print_unapplied)
+    cli.UnknownAction -> {
+      Ok(Nil)
+    }
   }
-  |> result.map_error(print_error)
+
+  case outcome {
+    Ok(_) -> Nil
+    Error(error) -> {
+      print_error(error)
+      halt(1)
+    }
+  }
 }
 
 /// Creates a MigrationEngine from a configuration.
 /// This function will try to connect to the database, create the migrations table if it doesn't exist.
 /// Then it will fetch the applied migrations and the existing migration files and check that hashes do match.
-/// 
+///
 /// Example usage:
 /// ```gleam
 /// import cigogne/config
 /// import cigogne/cigogne
-/// 
+///
 /// pub fn main() {
 ///   use app_name <- result.try(config.get_app_name())
 ///   use config <- result.try(config.get(app_name))
 ///   use engine <- result.try(cigogne.create_engine(config))
-/// 
+///
 ///   // Now you can use the engine to apply or rollback migrations
 ///   use _ <- result.try(cigogne.apply(engine))
 ///   use _ <- result.try(cigogne.rollback(engine))
@@ -270,7 +283,7 @@ pub fn rollback(engine: MigrationEngine) -> Result(Nil, CigogneError) {
 /// If `count` is less than or equal to 0, this function does nothing.
 /// If there is no migration to apply, it returns an error.
 /// If there are less than `count` migrations to apply, it applies all of them.
-/// 
+///
 /// Example usage:
 /// ```gleam
 /// use engine <- result.try(cigogne.create_engine(config))
@@ -293,7 +306,7 @@ pub fn apply_n(engine: MigrationEngine, count: Int) -> Result(Nil, CigogneError)
 /// If `count` is less than or equal to 0, this function does nothing.
 /// If there is no migration to rollback, it returns an error.
 /// If there are less than `count` migrations to rollback, it rolls all of them back.
-/// 
+///
 /// Example usage:
 /// ```gleam
 /// use engine <- result.try(cigogne.create_engine(config))
@@ -597,3 +610,6 @@ pub fn apply_migration_if_not_applied(
     Error(_) -> apply_migrations(engine, [migration])
   }
 }
+
+@external(erlang, "erlang", "halt")
+fn halt(status: Int) -> Nil
