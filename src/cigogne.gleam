@@ -78,14 +78,14 @@ pub fn main() -> Nil {
   let assert Ok(cigogne_config) = config.get(application_name)
   let outcome =
     cli.get_action(application_name, args)
-    |> result.replace_error(UnmatchedCommandError)
+    |> result.map_error(fn(_) { UnmatchedCommandError })
     |> result.try(run_command(_, cigogne_config))
 
   case outcome {
     Ok(_) -> Nil
     Error(UnmatchedCommandError) -> {
       // the CLI library already prints a helpful message.
-      halt(1)
+      halt(2)
     }
     Error(ExecutionError(error)) -> {
       print_error(error)
