@@ -49,6 +49,12 @@ pub type CigogneError {
   CompoundError(errors: List(CigogneError))
 }
 
+// Helper to unify error types
+type MainError {
+  ExecutionError(error: CigogneError)
+  UnmatchedCommandError
+}
+
 /// The main entry point of the Cigogne CLI.
 ///
 /// Example usage:
@@ -70,12 +76,29 @@ pub fn main() -> Nil {
   let args = argv.load().arguments
   let assert Ok(application_name) = config.get_app_name()
   let assert Ok(cigogne_config) = config.get(application_name)
-  let cli_action =
+  let outcome =
     cli.get_action(application_name, args)
-    |> result.map_error(fn(_) { cli.UnknownAction })
-    |> result.unwrap_both()
+    |> result.replace_error(UnmatchedCommandError)
+    |> result.try(run_command(_, cigogne_config))
 
-  let outcome = case cli_action {
+  case outcome {
+    Ok(_) -> Nil
+    Error(UnmatchedCommandError) -> {
+      // the CLI library already prints a helpful message.
+      halt(1)
+    }
+    Error(ExecutionError(error)) -> {
+      print_error(error)
+      halt(1)
+    }
+  }
+}
+
+fn run_command(
+  cli_action: cli.CliActions,
+  cigogne_config: config.Config,
+) -> Result(Nil, MainError) {
+  case cli_action {
     cli.NewMigration(migrations:, name:) ->
       cigogne_config.migrations
       |> config.merge_migrations_config(migrations)
@@ -120,18 +143,8 @@ pub fn main() -> Nil {
       |> config.merge(config)
       |> create_engine()
       |> result.map(print_unapplied)
-    cli.UnknownAction -> {
-      Ok(Nil)
-    }
   }
-
-  case outcome {
-    Ok(_) -> Nil
-    Error(error) -> {
-      print_error(error)
-      halt(1)
-    }
-  }
+  |> result.map_error(ExecutionError)
 }
 
 /// Creates a MigrationEngine from a configuration.

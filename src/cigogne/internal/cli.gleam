@@ -13,7 +13,6 @@ pub type CliActions {
   UpdateConfig(config: config.Config)
   InitConfig
   PrintUnapplied(config: config.Config)
-  UnknownAction
 }
 
 pub fn get_action(
