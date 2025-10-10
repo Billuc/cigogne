@@ -297,3 +297,21 @@ $$ LANGUAGE plpgsql;",
     ]
   assert migration.queries_down == ["SELECT 1;"]
 }
+
+pub fn quote_in_comment_test() {
+  let content =
+    "
+--- migration:up
+-- What doesn't kill you makes you stronger
+  CREATE TABLE books(id SERIAL);
+--- migration:down
+  DROP TABLE books;
+--- migration:end
+  "
+  let file = fs.File("20251010100203-MigrationTest.sql", content)
+
+  let assert Ok(migration) = parser_formatter.parse(file)
+
+  assert migration.queries_up == ["CREATE TABLE books(id SERIAL);"]
+  assert migration.queries_down == ["DROP TABLE books;"]
+}
