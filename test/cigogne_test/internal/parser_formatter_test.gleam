@@ -315,3 +315,29 @@ pub fn quote_in_comment_test() {
   assert migration.queries_up == ["CREATE TABLE books(id SERIAL);"]
   assert migration.queries_down == ["DROP TABLE books;"]
 }
+
+pub fn c_style_comments_test() {
+  let content =
+    "
+--- migration:up
+  /*
+    * This is a test
+    * of a multiline comment
+    */
+    SELECT 1;
+    /*
+    * I can  write -- comments here
+    */
+    -- But multiline here /* would break stuff
+
+--- migration:down
+    SELECT 1;
+--- migration:end
+    "
+  let file = fs.File("20251010102930-MigrationTest.sql", content)
+
+  let assert Ok(migration) = parser_formatter.parse(file)
+
+  assert migration.queries_up == ["SELECT 1;"]
+  assert migration.queries_down == ["SELECT 1;"]
+}

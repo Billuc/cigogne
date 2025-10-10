@@ -4,8 +4,6 @@ import cigogne/migration
 import gleam/bool
 import gleam/int
 import gleam/list
-
-// import gleam/option
 import gleam/result
 import gleam/string
 import gleam/time/calendar
@@ -133,7 +131,7 @@ fn parse_content(
 }
 
 fn split_queries(queries: String) -> Result(List(String), ParserError) {
-  let splitter = splitter.new(["--", ";", "$", "'", "\n"])
+  let splitter = splitter.new(["--", ";", "$", "'", "\n", "/*", "*/"])
 
   use queries <- result.try(do_split(splitter, queries, Simple, [], ""))
 
@@ -149,6 +147,7 @@ type QueryContext {
   Simple
   StringLiteral(parent_context: QueryContext)
   Comment(parent_context: QueryContext)
+  CStyleComment(parent_context: QueryContext)
   DollarTag(parent_context: QueryContext)
   DollarQuoted(tag: String, parent_context: QueryContext)
 }
@@ -160,12 +159,6 @@ fn do_split(
   queries: List(String),
   current_query: String,
 ) -> Result(List(String), ParserError) {
-  echo "Context: "
-    <> string.inspect(context)
-    <> " | Content: '"
-    <> content
-    <> "'"
-
   case splitter.split(splitter, content), context {
     #(before, ";", after), Simple ->
       do_split(
@@ -175,11 +168,19 @@ fn do_split(
         [current_query <> before, ..queries],
         "",
       )
-    #(before, "--", after), Simple | #(before, "--", after), DollarQuoted(_, _) ->
+    #(before, "--", after), Simple ->
       do_split(
         splitter,
         after,
         Comment(context),
+        queries,
+        current_query <> before,
+      )
+    #(before, "/*", after), Simple ->
+      do_split(
+        splitter,
+        after,
+        CStyleComment(context),
         queries,
         current_query <> before,
       )
@@ -229,6 +230,8 @@ fn do_split(
       )
     #(_, "\n", after), Comment(parent_ctx) ->
       do_split(splitter, after, parent_ctx, queries, current_query)
+    #(_, "*/", after), CStyleComment(parent_ctx) ->
+      do_split(splitter, after, parent_ctx, queries, current_query)
     #(before, "$", after), DollarTag(DollarQuoted(tag, parent)) ->
       case before == tag {
         True ->
@@ -258,11 +261,12 @@ fn do_split(
       )
     #(before, "", _), Simple -> Ok([current_query <> before, ..queries])
     #(_, "", _), Comment(_) -> Ok(queries)
+    #(_, "", _), CStyleComment(_) -> Error(UnfinishedLiteral("C-style comment"))
     #(_, "", _), StringLiteral(_) -> Error(UnfinishedLiteral("string literal"))
     #(_, "", _), DollarTag(_) -> Error(UnfinishedLiteral("dollar tag"))
     #(_, "", _), DollarQuoted(tag, _) ->
       Error(UnfinishedLiteral("dollar quoted text with tag '" <> tag <> "'"))
-    #(_, _, after), Comment(_) ->
+    #(_, _, after), Comment(_) | #(_, _, after), CStyleComment(_) ->
       do_split(splitter, after, context, queries, current_query)
     #(before, delim, after), ctx ->
       do_split(splitter, after, ctx, queries, current_query <> before <> delim)
