@@ -4,11 +4,11 @@ import cigogne/migration
 import gleam/bool
 import gleam/int
 import gleam/list
-import gleam/option
 import gleam/result
 import gleam/string
 import gleam/time/calendar
 import gleam/time/timestamp
+import splitter
 
 const migration_up_guard = "--- migration:up"
 
@@ -131,11 +131,9 @@ fn parse_content(
 }
 
 fn split_queries(queries: String) -> Result(List(String), ParserError) {
-  let graphemes = queries |> string.to_graphemes
+  let splitter = splitter.new(["--", ";", "$", "'", "\n", "/*", "*/"])
 
-  use queries <- result.try(
-    analyse_sql_graphemes(graphemes, [], SimpleContext, []),
-  )
+  use queries <- result.try(do_split(splitter, queries, Simple, [], ""))
 
   queries
   |> list.reverse
@@ -146,109 +144,132 @@ fn split_queries(queries: String) -> Result(List(String), ParserError) {
 }
 
 type QueryContext {
-  SimpleContext
-  InStringLiteral
-  InDollarQuoted(tag: String)
-  InDollarTag(tag_so_far: List(String), parent_tag: option.Option(String))
+  Simple
+  StringLiteral(parent_context: QueryContext)
+  Comment(parent_context: QueryContext)
+  CStyleComment(parent_context: QueryContext)
+  DollarTag(parent_context: QueryContext)
+  DollarQuoted(tag: String, parent_context: QueryContext)
 }
 
-fn analyse_sql_graphemes(
-  sql_graphemes: List(String),
-  previous_graphemes: List(String),
+fn do_split(
+  splitter: splitter.Splitter,
+  content: String,
   context: QueryContext,
   queries: List(String),
+  current_query: String,
 ) -> Result(List(String), ParserError) {
-  case sql_graphemes, context {
-    [], SimpleContext -> queries |> add_if_not_empty(previous_graphemes) |> Ok
-    [], InStringLiteral -> Error(UnfinishedLiteral("string literal"))
-    [], InDollarQuoted(tag:) ->
+  case splitter.split(splitter, content), context {
+    #(before, ";", after), Simple ->
+      do_split(
+        splitter,
+        after,
+        Simple,
+        [current_query <> before, ..queries],
+        "",
+      )
+    #(before, "--", after), Simple ->
+      do_split(
+        splitter,
+        after,
+        Comment(context),
+        queries,
+        current_query <> before,
+      )
+    #(before, "/*", after), Simple ->
+      do_split(
+        splitter,
+        after,
+        CStyleComment(context),
+        queries,
+        current_query <> before,
+      )
+    #(before, "'", after), Simple ->
+      do_split(
+        splitter,
+        after,
+        StringLiteral(context),
+        queries,
+        current_query <> before <> "'",
+      )
+    #(before, "$", after), Simple | #(before, "$", after), DollarQuoted(_, _) ->
+      case after {
+        "0" <> _
+        | "1" <> _
+        | "2" <> _
+        | "3" <> _
+        | "4" <> _
+        | "5" <> _
+        | "6" <> _
+        | "7" <> _
+        | "8" <> _
+        | "9" <> _ ->
+          do_split(
+            splitter,
+            after,
+            context,
+            queries,
+            current_query <> before <> "$",
+          )
+        _ ->
+          do_split(
+            splitter,
+            after,
+            DollarTag(context),
+            queries,
+            current_query <> before <> "$",
+          )
+      }
+    #(before, "'", after), StringLiteral(parent_ctx) ->
+      do_split(
+        splitter,
+        after,
+        parent_ctx,
+        queries,
+        current_query <> before <> "'",
+      )
+    #(_, "\n", after), Comment(parent_ctx) ->
+      do_split(splitter, after, parent_ctx, queries, current_query)
+    #(_, "*/", after), CStyleComment(parent_ctx) ->
+      do_split(splitter, after, parent_ctx, queries, current_query)
+    #(before, "$", after), DollarTag(DollarQuoted(tag, parent)) ->
+      case before == tag {
+        True ->
+          do_split(
+            splitter,
+            after,
+            parent,
+            queries,
+            current_query <> before <> "$",
+          )
+        False ->
+          do_split(
+            splitter,
+            after,
+            DollarQuoted(before, DollarQuoted(tag, parent)),
+            queries,
+            current_query <> before <> "$",
+          )
+      }
+    #(before, "$", after), DollarTag(parent_ctx) ->
+      do_split(
+        splitter,
+        after,
+        DollarQuoted(before, parent_ctx),
+        queries,
+        current_query <> before <> "$",
+      )
+    #(before, "", _), Simple -> Ok([current_query <> before, ..queries])
+    #(_, "", _), Comment(_) -> Ok(queries)
+    #(_, "", _), CStyleComment(_) -> Error(UnfinishedLiteral("C-style comment"))
+    #(_, "", _), StringLiteral(_) -> Error(UnfinishedLiteral("string literal"))
+    #(_, "", _), DollarTag(_) -> Error(UnfinishedLiteral("dollar tag"))
+    #(_, "", _), DollarQuoted(tag, _) ->
       Error(UnfinishedLiteral("dollar quoted text with tag '" <> tag <> "'"))
-    [], InDollarTag(_, _) -> Error(UnfinishedLiteral("dollar tag"))
-    [";", ..rest], SimpleContext ->
-      analyse_sql_graphemes(
-        rest,
-        [],
-        SimpleContext,
-        queries |> add_if_not_empty(previous_graphemes),
-      )
-    ["'", ..rest], SimpleContext ->
-      analyse_sql_graphemes(
-        rest,
-        ["'", ..previous_graphemes],
-        InStringLiteral,
-        queries,
-      )
-    ["'", ..rest], InStringLiteral ->
-      analyse_sql_graphemes(
-        rest,
-        ["'", ..previous_graphemes],
-        SimpleContext,
-        queries,
-      )
-    ["$", ..rest], SimpleContext ->
-      analyse_sql_graphemes(
-        rest,
-        ["$", ..previous_graphemes],
-        InDollarTag([], option.None),
-        queries,
-      )
-    ["$", ..rest], InDollarTag(tag, option.None) ->
-      analyse_sql_graphemes(
-        rest,
-        ["$", ..previous_graphemes],
-        InDollarQuoted(tag |> list.reverse |> string.join("")),
-        queries,
-      )
-    ["$", ..rest], InDollarTag(tag_graphemes, option.Some(tag)) ->
-      analyse_sql_graphemes(
-        rest,
-        ["$", ..previous_graphemes],
-        case tag_graphemes |> list.reverse |> string.join("") {
-          a if a == tag -> SimpleContext
-          _ -> InDollarQuoted(tag)
-        },
-        queries,
-      )
-    ["$", ..rest], InDollarQuoted(tag) ->
-      analyse_sql_graphemes(
-        rest,
-        ["$", ..previous_graphemes],
-        InDollarTag([], option.Some(tag)),
-        queries,
-      )
-    [g, ..rest], InDollarTag([], parent) ->
-      analyse_sql_graphemes(
-        rest,
-        [g, ..previous_graphemes],
-        case g {
-          "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ->
-            case parent {
-              option.None -> SimpleContext
-              option.Some(tag) -> InDollarQuoted(tag)
-            }
-          _ -> InDollarTag([g], parent)
-        },
-        queries,
-      )
-    [g, ..rest], InDollarTag(tag_graphemes, parent) ->
-      analyse_sql_graphemes(
-        rest,
-        [g, ..previous_graphemes],
-        InDollarTag([g, ..tag_graphemes], parent),
-        queries,
-      )
-    [g, ..rest], ctx ->
-      analyse_sql_graphemes(rest, [g, ..previous_graphemes], ctx, queries)
-  }
-}
-
-fn add_if_not_empty(
-  string_list: List(String),
-  graphemes_to_add: List(String),
-) -> List(String) {
-  case graphemes_to_add {
-    [] -> string_list
-    _ -> [graphemes_to_add |> list.reverse |> string.join(""), ..string_list]
+    #(_, _, after), Comment(_) | #(_, _, after), CStyleComment(_) ->
+      do_split(splitter, after, context, queries, current_query)
+    #(before, delim, after), ctx ->
+      do_split(splitter, after, ctx, queries, current_query <> before <> delim)
   }
 }
 
