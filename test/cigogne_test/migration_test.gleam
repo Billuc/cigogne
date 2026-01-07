@@ -21,7 +21,7 @@ pub fn new_migration_test() {
 
 pub fn set_folder_test() {
   let assert Ok(ts) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
-  let mig = migration.Migration("", ts, "SetFolder", [], [], "")
+  let mig = migration.Migration("", ts, "SetFolder", [], [], False, "")
 
   let mig_with_folder = migration.set_folder(mig, "priv/new_folder")
 
@@ -42,15 +42,15 @@ pub fn check_name_too_long_test() {
 
 pub fn to_fullname_test() {
   let assert Ok(ts) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
-  let mig = migration.Migration("", ts, "ToFullname", [], [], "")
+  let mig = migration.Migration("", ts, "ToFullname", [], [], False, "")
 
   assert migration.to_fullname(mig) == "20241217210000-ToFullname"
 }
 
 pub fn compare_eq_test() {
   let assert Ok(ts) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
-  let mig1 = migration.Migration("", ts, "CompareEq", [], [], "")
-  let mig2 = migration.Migration("", ts, "CompareEq", [], [], "")
+  let mig1 = migration.Migration("", ts, "CompareEq", [], [], False, "")
+  let mig2 = migration.Migration("", ts, "CompareEq", [], [], False, "")
 
   assert migration.compare(mig1, mig2) == order.Eq
 }
@@ -58,8 +58,8 @@ pub fn compare_eq_test() {
 pub fn compare_lt_timestamp_test() {
   let assert Ok(ts1) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
   let assert Ok(ts2) = timestamp.parse_rfc3339("2024-12-17T21:01:00Z")
-  let mig1 = migration.Migration("", ts1, "CompareLt", [], [], "")
-  let mig2 = migration.Migration("", ts2, "CompareLt", [], [], "")
+  let mig1 = migration.Migration("", ts1, "CompareLt", [], [], False, "")
+  let mig2 = migration.Migration("", ts2, "CompareLt", [], [], False, "")
 
   assert migration.compare(mig1, mig2) == order.Lt
   assert migration.compare(mig2, mig1) == order.Gt
@@ -67,16 +67,15 @@ pub fn compare_lt_timestamp_test() {
 
 pub fn compare_lt_name_test() {
   let assert Ok(ts) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
-  let mig1 = migration.Migration("", ts, "AName", [], [], "")
-  let mig2 = migration.Migration("", ts, "BName", [], [], "")
+  let mig1 = migration.Migration("", ts, "AName", [], [], False, "")
+  let mig2 = migration.Migration("", ts, "BName", [], [], False, "")
 
   assert migration.compare(mig1, mig2) == order.Lt
   assert migration.compare(mig2, mig1) == order.Gt
 }
 
 pub fn merge_no_migrations_test() {
-  let assert Ok(ts) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
-  let assert Error(err) = migration.merge([], ts, "MergeTest")
+  let assert Error(err) = migration.merge([])
   assert err == migration.NothingToMergeError
 }
 
@@ -84,18 +83,13 @@ pub fn merge_test() {
   let assert Ok(ts1) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
   let assert Ok(ts2) = timestamp.parse_rfc3339("2024-12-17T21:01:00Z")
   let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
-  let assert Ok(ts4) = timestamp.parse_rfc3339("2024-12-17T21:03:00Z")
-  let mig1 = migration.Migration("", ts1, "Mig1", ["up1"], ["down1"], "")
-  let mig2 = migration.Migration("", ts2, "Mig2", ["up2"], ["down2"], "")
-  let mig3 = migration.Migration("", ts3, "Mig3", ["up3"], ["down3"], "")
+  let mig1 = migration.Migration("", ts1, "Mig1", ["up1"], ["down1"], False, "")
+  let mig2 = migration.Migration("", ts2, "Mig2", ["up2"], ["down2"], False, "")
+  let mig3 = migration.Migration("", ts3, "Mig3", ["up3"], ["down3"], False, "")
 
-  let assert Ok(merged) =
-    migration.merge([mig1, mig2, mig3], ts4, "MergedMigration")
+  let assert Ok([queries]) = migration.merge([mig1, mig2, mig3])
 
-  assert merged.path == ""
-  assert merged.timestamp == ts4
-  assert merged.name == "MergedMigration"
-  assert merged.queries_up
+  assert queries.0
     == [
       "\n--- " <> migration.to_fullname(mig1),
       "up1",
@@ -104,7 +98,7 @@ pub fn merge_test() {
       "\n--- " <> migration.to_fullname(mig3),
       "up3",
     ]
-  assert merged.queries_down
+  assert queries.1
     == [
       "\n--- " <> migration.to_fullname(mig3),
       "down3",
@@ -113,16 +107,53 @@ pub fn merge_test() {
       "\n--- " <> migration.to_fullname(mig1),
       "down1",
     ]
-  assert merged.sha256 == ""
+  assert queries.2 == False
+}
+
+pub fn merge_with_disable_transaction_test() {
+  let assert Ok(ts1) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
+  let assert Ok(ts2) = timestamp.parse_rfc3339("2024-12-17T21:01:00Z")
+  let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
+  let assert Ok(ts4) = timestamp.parse_rfc3339("2024-12-17T21:03:00Z")
+  let mig1 = migration.Migration("", ts1, "Mig1", ["up1"], ["down1"], False, "")
+  let mig2 = migration.Migration("", ts2, "Mig2", ["up2"], ["down2"], False, "")
+  let mig3 = migration.Migration("", ts3, "Mig3", ["up3"], ["down3"], True, "")
+  let mig4 = migration.Migration("", ts4, "Mig4", ["up4"], ["down4"], False, "")
+
+  let assert Ok([q1, q2, q3]) = migration.merge([mig1, mig2, mig3, mig4])
+
+  assert q1.0
+    == [
+      "\n--- " <> migration.to_fullname(mig1),
+      "up1",
+      "\n--- " <> migration.to_fullname(mig2),
+      "up2",
+    ]
+  assert q1.1
+    == [
+      "\n--- " <> migration.to_fullname(mig2),
+      "down2",
+      "\n--- " <> migration.to_fullname(mig1),
+      "down1",
+    ]
+  assert q1.2 == False
+
+  assert q2.0 == ["\n--- " <> migration.to_fullname(mig3), "up3"]
+  assert q2.1 == ["\n--- " <> migration.to_fullname(mig3), "down3"]
+  assert q2.2 == True
+
+  assert q3.0 == ["\n--- " <> migration.to_fullname(mig4), "up4"]
+  assert q3.1 == ["\n--- " <> migration.to_fullname(mig4), "down4"]
+  assert q3.2 == False
 }
 
 pub fn find_non_applied_test() {
   let assert Ok(ts1) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
   let assert Ok(ts2) = timestamp.parse_rfc3339("2024-12-17T21:01:00Z")
   let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
-  let mig1 = migration.Migration("", ts1, "Mig1", ["up1"], ["down1"], "")
-  let mig2 = migration.Migration("", ts2, "Mig2", ["up2"], ["down2"], "")
-  let mig3 = migration.Migration("", ts3, "Mig3", ["up3"], ["down3"], "")
+  let mig1 = migration.Migration("", ts1, "Mig1", ["up1"], ["down1"], False, "")
+  let mig2 = migration.Migration("", ts2, "Mig2", ["up2"], ["down2"], False, "")
+  let mig3 = migration.Migration("", ts3, "Mig3", ["up3"], ["down3"], False, "")
   let all = [mig1, mig2, mig3]
   let applied = [mig1, mig3]
 
@@ -135,9 +166,9 @@ pub fn find_multiple_non_applied_test() {
   let assert Ok(ts1) = timestamp.parse_rfc3339("2024-12-17T21:00:00Z")
   let assert Ok(ts2) = timestamp.parse_rfc3339("2024-12-17T21:01:00Z")
   let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
-  let mig1 = migration.Migration("", ts1, "Mig1", ["up1"], ["down1"], "")
-  let mig2 = migration.Migration("", ts2, "Mig2", ["up2"], ["down2"], "")
-  let mig3 = migration.Migration("", ts3, "Mig3", ["up3"], ["down3"], "")
+  let mig1 = migration.Migration("", ts1, "Mig1", ["up1"], ["down1"], False, "")
+  let mig2 = migration.Migration("", ts2, "Mig2", ["up2"], ["down2"], False, "")
+  let mig3 = migration.Migration("", ts3, "Mig3", ["up3"], ["down3"], False, "")
   let all = [mig1, mig2, mig3]
   let applied = [mig1]
 
@@ -152,14 +183,38 @@ pub fn match_migrations_test() {
   let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
 
   let mig1 =
-    migration.Migration("path1", ts1, "Mig1", ["up1"], ["down1"], "hash1")
+    migration.Migration(
+      "path1",
+      ts1,
+      "Mig1",
+      ["up1"],
+      ["down1"],
+      False,
+      "hash1",
+    )
   let mig2 =
-    migration.Migration("path2", ts2, "Mig2", ["up2"], ["down2"], "hash2")
+    migration.Migration(
+      "path2",
+      ts2,
+      "Mig2",
+      ["up2"],
+      ["down2"],
+      False,
+      "hash2",
+    )
   let mig3 =
-    migration.Migration("path3", ts3, "Mig3", ["up3"], ["down3"], "hash3")
+    migration.Migration(
+      "path3",
+      ts3,
+      "Mig3",
+      ["up3"],
+      ["down3"],
+      False,
+      "hash3",
+    )
 
-  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], "hash1")
-  let db_mig3 = migration.Migration("", ts3, "Mig3", [], [], "hash3")
+  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], False, "hash1")
+  let db_mig3 = migration.Migration("", ts3, "Mig3", [], [], True, "hash3")
 
   let migs_from_files = [mig1, mig2, mig3]
   let migs_from_db = [db_mig1, db_mig3]
@@ -176,15 +231,47 @@ pub fn match_migrations_no_match_test() {
   let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
 
   let mig1 =
-    migration.Migration("path1", ts1, "Mig1", ["up1"], ["down1"], "hash1")
+    migration.Migration(
+      "path1",
+      ts1,
+      "Mig1",
+      ["up1"],
+      ["down1"],
+      False,
+      "hash1",
+    )
   let mig2 =
-    migration.Migration("path2", ts2, "Mig2", ["up2"], ["down2"], "hash2")
+    migration.Migration(
+      "path2",
+      ts2,
+      "Mig2",
+      ["up2"],
+      ["down2"],
+      False,
+      "hash2",
+    )
   let mig3 =
-    migration.Migration("path3", ts3, "Mig3", ["up3"], ["down3"], "hash3")
+    migration.Migration(
+      "path3",
+      ts3,
+      "Mig3",
+      ["up3"],
+      ["down3"],
+      False,
+      "hash3",
+    )
 
-  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], "hash1")
+  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], False, "hash1")
   let db_mig_other =
-    migration.Migration("", ts3, "OtherMigration", [], [], "different_hash")
+    migration.Migration(
+      "",
+      ts3,
+      "OtherMigration",
+      [],
+      [],
+      False,
+      "different_hash",
+    )
 
   let migs_from_files = [mig1, mig2, mig3]
   let migs_from_db = [db_mig1, db_mig_other]
@@ -204,9 +291,25 @@ pub fn match_migrations_hash_changed_test() {
   let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
 
   let mig1 =
-    migration.Migration("path1", ts1, "Mig1", ["up1"], ["down1"], "hash1")
+    migration.Migration(
+      "path1",
+      ts1,
+      "Mig1",
+      ["up1"],
+      ["down1"],
+      False,
+      "hash1",
+    )
   let mig2 =
-    migration.Migration("path2", ts2, "Mig2", ["up2"], ["down2"], "hash2")
+    migration.Migration(
+      "path2",
+      ts2,
+      "Mig2",
+      ["up2"],
+      ["down2"],
+      False,
+      "hash2",
+    )
   let mig3 =
     migration.Migration(
       "path3",
@@ -214,11 +317,12 @@ pub fn match_migrations_hash_changed_test() {
       "Mig3",
       ["up3"],
       ["down3"],
+      False,
       "hash_changed",
     )
 
-  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], "hash1")
-  let db_mig3 = migration.Migration("", ts3, "Mig3", [], [], "hash3")
+  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], False, "hash1")
+  let db_mig3 = migration.Migration("", ts3, "Mig3", [], [], False, "hash3")
 
   let migs_from_files = [mig1, mig2, mig3]
   let migs_from_db = [db_mig1, db_mig3]
@@ -238,14 +342,38 @@ pub fn match_migrations_no_hash_check_test() {
   let assert Ok(ts3) = timestamp.parse_rfc3339("2024-12-17T21:02:00Z")
 
   let mig1 =
-    migration.Migration("path1", ts1, "Mig1", ["up1"], ["down1"], "hash1")
+    migration.Migration(
+      "path1",
+      ts1,
+      "Mig1",
+      ["up1"],
+      ["down1"],
+      False,
+      "hash1",
+    )
   let mig2 =
-    migration.Migration("path2", ts2, "Mig2", ["up2"], ["down2"], "hash2")
+    migration.Migration(
+      "path2",
+      ts2,
+      "Mig2",
+      ["up2"],
+      ["down2"],
+      False,
+      "hash2",
+    )
   let mig3 =
-    migration.Migration("path3", ts3, "Mig3", ["up3"], ["down3"], "hash3")
+    migration.Migration(
+      "path3",
+      ts3,
+      "Mig3",
+      ["up3"],
+      ["down3"],
+      False,
+      "hash3",
+    )
 
-  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], "hash456")
-  let db_mig3 = migration.Migration("", ts3, "Mig3", [], [], "hash789")
+  let db_mig1 = migration.Migration("", ts1, "Mig1", [], [], False, "hash456")
+  let db_mig3 = migration.Migration("", ts3, "Mig3", [], [], False, "hash789")
 
   let migs_from_files = [mig1, mig2, mig3]
   let migs_from_db = [db_mig1, db_mig3]
@@ -257,7 +385,7 @@ pub fn match_migrations_no_hash_check_test() {
 }
 
 pub fn is_zero_migration_test() {
-  assert migration.Migration("", utils.epoch(), "", [], [], "")
+  assert migration.Migration("", utils.epoch(), "", [], [], False, "")
     |> migration.is_zero_migration()
     == True
 }
@@ -269,6 +397,7 @@ pub fn is_not_zero_migration_test() {
       "test",
       ["CREATE TABLE test();"],
       ["DROP TABLE test;"],
+      False,
       "fde7050fe128b1ccf71703ab7463748a481fc1d347ab17ea3eaee56f4a2cd96f",
     )
     |> migration.is_zero_migration()
@@ -280,6 +409,7 @@ pub fn is_not_zero_migration_test() {
     "test",
     ["CREATE TABLE test();"],
     ["DROP TABLE test;"],
+    False,
     "fde7050fe128b1ccf71703ab7463748a481fc1d347ab17ea3eaee56f4a2cd96f",
   )
   |> migration.is_zero_migration()

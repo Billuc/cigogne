@@ -12,6 +12,7 @@ import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
+import gleam/time/duration
 import gleam/time/timestamp
 
 /// The MigrationEngine contains all the data required to apply and roll back migrations.
@@ -372,51 +373,63 @@ pub fn include_lib(
     config.get(lib_name) |> result.map_error(ConfigError),
   )
 
-  use lib_migrations <- result.try(read_migrations(lib_config))
-  let last_migration_for_dep =
-    migration_engine.config.migrations.dependencies |> list.key_find(lib_name)
+  {
+    use lib_migrations <- result.try(read_migrations(lib_config))
+    let last_migration_for_dep =
+      migration_engine.config.migrations.dependencies |> list.key_find(lib_name)
 
-  let lib_migrations = case last_migration_for_dep {
-    Error(_) -> lib_migrations
-    Ok(name) ->
-      lib_migrations
-      |> list.drop_while(fn(mig) { migration.to_fullname(mig) != name })
-      |> list.drop(1)
+    let lib_migrations = case last_migration_for_dep {
+      Error(_) -> lib_migrations
+      Ok(name) ->
+        lib_migrations
+        |> list.drop_while(fn(mig) { migration.to_fullname(mig) != name })
+        |> list.drop(1)
+    }
+
+    use merged_queries <- result.try(
+      migration.merge(lib_migrations)
+      |> result.map_error(MigrationError),
+    )
+    use merged_queries, index <- utils.try_map_index(merged_queries)
+    let merged_mig =
+      migration.Migration(
+        "",
+        timestamp.system_time() |> timestamp.add(duration.seconds(index)),
+        lib_name,
+        merged_queries.0,
+        merged_queries.1,
+        merged_queries.2,
+        "",
+      )
+      |> migration.set_folder(
+        "priv/"
+        <> config.get_migrations_folder(migration_engine.config.migrations),
+      )
+
+    let new_file = parser_formatter.format(merged_mig)
+    use _ <- result.try(
+      new_file
+      |> fs.write_file()
+      |> result.map_error(FSError),
+    )
+    io.println("Created migration at " <> new_file.path)
+    let assert Ok(last_migration) = list.last(lib_migrations)
+
+    let new_config =
+      config.Config(
+        ..migration_engine.config,
+        migrations: config.MigrationsConfig(
+          ..migration_engine.config.migrations,
+          dependencies: {
+            migration_engine.config.migrations.dependencies
+            |> list.key_set(lib_name, last_migration |> migration.to_fullname())
+          },
+        ),
+      )
+
+    config.write(new_config) |> result.map_error(ConfigError)
   }
-
-  use merged_mig <- result.try(
-    migration.merge(lib_migrations, timestamp.system_time(), lib_name)
-    |> result.map_error(MigrationError),
-  )
-  let merged_mig =
-    merged_mig
-    |> migration.set_folder(
-      "priv/"
-      <> config.get_migrations_folder(migration_engine.config.migrations),
-    )
-
-  let new_file = parser_formatter.format(merged_mig)
-  use _ <- result.try(
-    new_file
-    |> fs.write_file()
-    |> result.map_error(FSError),
-  )
-  io.println("Created migration at " <> new_file.path)
-  let assert Ok(last_migration) = list.last(lib_migrations)
-
-  let new_config =
-    config.Config(
-      ..migration_engine.config,
-      migrations: config.MigrationsConfig(
-        ..migration_engine.config.migrations,
-        dependencies: {
-          migration_engine.config.migrations.dependencies
-          |> list.key_set(lib_name, last_migration |> migration.to_fullname())
-        },
-      ),
-    )
-
-  config.write(new_config) |> result.map_error(ConfigError)
+  |> result.replace(Nil)
 }
 
 /// Remove a library's migrations from your project.
@@ -451,42 +464,50 @@ pub fn remove_lib(
     Error(LibNotIncluded(lib_name)),
   )
 
-  use merged_mig <- result.try(
-    migration.merge(
-      opposite_migrations,
-      timestamp.system_time(),
-      "remove_" <> lib_name,
+  {
+    use merged_queries <- result.try(
+      migration.merge(opposite_migrations)
+      |> result.map_error(MigrationError),
     )
-    |> result.map_error(MigrationError),
-  )
-  let merged_mig =
-    merged_mig
-    |> migration.set_folder(
-      "priv/"
-      <> config.get_migrations_folder(migration_engine.config.migrations),
+    use merged_queries, index <- utils.try_map_index(merged_queries)
+    let merged_mig =
+      migration.Migration(
+        "",
+        timestamp.system_time() |> timestamp.add(duration.seconds(index)),
+        "remove_" <> lib_name,
+        merged_queries.0,
+        merged_queries.1,
+        merged_queries.2,
+        "",
+      )
+      |> migration.set_folder(
+        "priv/"
+        <> config.get_migrations_folder(migration_engine.config.migrations),
+      )
+
+    let new_file = parser_formatter.format(merged_mig)
+    use _ <- result.try(
+      new_file
+      |> fs.write_file()
+      |> result.map_error(FSError),
     )
+    io.println("Created migration at " <> new_file.path)
 
-  let new_file = parser_formatter.format(merged_mig)
-  use _ <- result.try(
-    new_file
-    |> fs.write_file()
-    |> result.map_error(FSError),
-  )
-  io.println("Created migration at " <> new_file.path)
+    let new_config =
+      config.Config(
+        ..migration_engine.config,
+        migrations: config.MigrationsConfig(
+          ..migration_engine.config.migrations,
+          dependencies: {
+            migration_engine.config.migrations.dependencies
+            |> list.filter(fn(dep) { dep.0 != lib_name })
+          },
+        ),
+      )
 
-  let new_config =
-    config.Config(
-      ..migration_engine.config,
-      migrations: config.MigrationsConfig(
-        ..migration_engine.config.migrations,
-        dependencies: {
-          migration_engine.config.migrations.dependencies
-          |> list.filter(fn(dep) { dep.0 != lib_name })
-        },
-      ),
-    )
-
-  config.write(new_config) |> result.map_error(ConfigError)
+    config.write(new_config) |> result.map_error(ConfigError)
+  }
+  |> result.replace(Nil)
 }
 
 /// Apply migrations to the database.
@@ -499,15 +520,11 @@ pub fn apply_migrations(
   engine: MigrationEngine,
   migrations: List(migration.Migration),
 ) -> Result(Nil, CigogneError) {
-  {
-    use transaction <- database.transaction(engine.db_data)
-    let db_data =
-      database.DatabaseData(..engine.db_data, connection: transaction)
-    use migration <- list.try_each(migrations)
+  let migration_chunks = list.chunk(migrations, fn(m) { m.disable_transaction })
 
-    io.println("Applying migration " <> migration.to_fullname(migration))
-    database.apply_migration_no_transaction(db_data, migration)
-  }
+  use chunk <- list.try_each(migration_chunks)
+
+  apply_migration_chunk(engine, chunk)
   |> result.map_error(DatabaseError)
   |> result.map(fn(_) {
     io.println(
@@ -515,6 +532,33 @@ pub fn apply_migrations(
       <> list.map(migrations, migration.to_fullname) |> string.join("\n\t"),
     )
   })
+}
+
+fn apply_migration_chunk(
+  engine: MigrationEngine,
+  migrations: List(migration.Migration),
+) -> Result(Nil, database.DatabaseError) {
+  case migrations {
+    [] -> Ok(Nil)
+    [first, ..] -> {
+      case first.disable_transaction {
+        True -> {
+          use migration <- list.try_each(migrations)
+          io.println("Applying migration " <> migration.to_fullname(migration))
+          database.apply_migration_no_transaction(engine.db_data, migration)
+        }
+        False -> {
+          use transaction <- database.transaction(engine.db_data)
+          let db_data =
+            database.DatabaseData(..engine.db_data, connection: transaction)
+          use migration <- list.try_each(migrations)
+
+          io.println("Applying migration " <> migration.to_fullname(migration))
+          database.apply_migration_no_transaction(db_data, migration)
+        }
+      }
+    }
+  }
 }
 
 /// Roll back migrations from the database.

@@ -20,6 +20,8 @@ pub type Migration {
     name: String,
     queries_up: List(String),
     queries_down: List(String),
+    // Flag activated by adding ":disable-transaction" after "--- migration:up" 
+    disable_transaction: Bool,
     sha256: String,
   )
 }
@@ -49,6 +51,7 @@ pub fn new(
       name:,
       queries_up: [],
       queries_down: [],
+      disable_transaction: False,
       sha256: "",
     )
 
@@ -104,45 +107,63 @@ pub fn compare(migration_a: Migration, migration_b: Migration) -> order.Order {
   |> order.break_tie(string.compare(migration_a.name, migration_b.name))
 }
 
-/// Merge multiple migrations into a single one, concatenating their up and down queries.
-/// The resulting migration will have an empty path and sha256 hash.
-/// The provided timestamp and name will be used for the resulting migration.
+/// Merge multiple migrations into a list of queries up, queries down and disable_transaction.
 pub fn merge(
   migrations: List(Migration),
-  timestamp: timestamp.Timestamp,
-  name: String,
-) -> Result(Migration, MigrationError) {
-  use name <- result.try(check_name(name))
+) -> Result(List(#(List(String), List(String), Bool)), MigrationError) {
   use <- bool.guard(list.is_empty(migrations), Error(NothingToMergeError))
 
-  let #(ups, downs) = merge_migration_contents(migrations)
-  let hash = ""
-
-  Ok(Migration("", timestamp, name, ups, downs, hash))
+  Ok(merge_migration_contents(migrations))
 }
 
-fn merge_migration_contents(migrations: List(Migration)) {
-  do_merge_contents(migrations, #([], []))
+fn merge_migration_contents(
+  migrations: List(Migration),
+) -> List(#(List(String), List(String), Bool)) {
+  do_merge_contents(migrations, [])
 }
 
 fn do_merge_contents(
   migrations: List(Migration),
-  contents: #(List(String), List(String)),
-) -> #(List(String), List(String)) {
+  contents: List(#(List(String), List(String), Bool)),
+) -> List(#(List(String), List(String), Bool)) {
   case migrations {
-    [] -> contents
+    [] -> contents |> list.reverse()
     [mig, ..rest] -> {
-      let migration_name = to_fullname(mig)
-      let #(ups, downs) = contents
+      case mig.disable_transaction {
+        True -> {
+          let migration_name = to_fullname(mig)
 
-      let mig_ups = ["\n--- " <> migration_name, ..mig.queries_up]
-      let ups = list.append(ups, mig_ups)
+          do_merge_contents(rest, [
+            #(
+              ["\n--- " <> migration_name, ..mig.queries_up],
+              ["\n--- " <> migration_name, ..mig.queries_down],
+              True,
+            ),
+            ..contents
+          ])
+        }
+        False -> {
+          let #(ups, downs, rest_contents) = case contents {
+            [] -> #([], [], [])
+            [#(_, _, True), ..] -> #([], [], contents)
+            [#(ups, downs, False), ..rest_contents] -> #(
+              ups,
+              downs,
+              rest_contents,
+            )
+          }
+          let migration_name = to_fullname(mig)
 
-      let mig_downs = ["\n--- " <> migration_name, ..mig.queries_down]
-      // Prepending the next migration for the down queries so that rollbacks can be done in the right order
-      let downs = list.append(mig_downs, downs)
+          let mig_ups = ["\n--- " <> migration_name, ..mig.queries_up]
+          let ups = list.append(ups, mig_ups)
 
-      do_merge_contents(rest, #(ups, downs))
+          let mig_downs = ["\n--- " <> migration_name, ..mig.queries_down]
+          // Prepending the next migration for the down queries so that rollbacks can be done in the right order
+          let downs = list.append(mig_downs, downs)
+
+          do_merge_contents(rest, [#(ups, downs, False), ..rest_contents])
+        }
+      }
     }
   }
 }
@@ -204,6 +225,7 @@ pub fn create_zero_migration(
     name,
     queries_up,
     queries_down,
+    False,
     utils.make_sha256(
       queries_up |> string.join(";") <> queries_down |> string.join(";"),
     ),

@@ -118,6 +118,32 @@ DROP TABLE users;
       "CREATE TABLE IF NOT EXISTS users(id UUID PRIMARY KEY, name TEXT NOT NULL);",
     ]
   assert migration.queries_down == ["DROP TABLE users;"]
+  assert migration.disable_transaction == False
+}
+
+pub fn parse_migration_file_with_disable_transaction_test() {
+  let content =
+    "
+--- migration:up:disable_transaction
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_name ON users(name);
+--- migration:down
+DROP INDEX IF EXISTS idx_users_name;
+--- migration:end
+  "
+  let file = fs.File("20241217205757-MigrationTest.sql", content)
+
+  let assert Ok(migration) = parser_formatter.parse(file)
+
+  assert migration.path == "20241217205757-MigrationTest.sql"
+  let assert Ok(expected_ts) = timestamp.parse_rfc3339("2024-12-17T20:57:57Z")
+  assert migration.timestamp == expected_ts
+  assert migration.name == "MigrationTest"
+  assert migration.queries_up
+    == [
+      "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_name ON users(name);",
+    ]
+  assert migration.queries_down == ["DROP INDEX IF EXISTS idx_users_name;"]
+  assert migration.disable_transaction == True
 }
 
 pub fn text_after_end_tag_is_ignored_test() {

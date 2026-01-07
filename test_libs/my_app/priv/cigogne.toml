@@ -21,4 +21,4 @@ schema = "test"
 migration_folder = "migs"
 
 [migrations.dependencies]
-
+lib = "20260107162021-Test4"

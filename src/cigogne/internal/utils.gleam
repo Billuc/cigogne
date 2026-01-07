@@ -141,3 +141,28 @@ fn do_get_results_or_errors(
       do_get_results_or_errors(rest, Error(errs))
   }
 }
+
+pub fn try_map_index(
+  list: List(a),
+  f: fn(a, Int) -> Result(b, e),
+) -> Result(List(b), e) {
+  do_try_map_index(list, f, 0, [])
+}
+
+fn do_try_map_index(
+  list: List(a),
+  f: fn(a, Int) -> Result(b, e),
+  index: Int,
+  result_so_far: List(b),
+) -> Result(List(b), e) {
+  case list {
+    [] -> result_so_far |> list.reverse() |> Ok
+    [first, ..rest] -> {
+      case f(first, index) {
+        Ok(mapped) ->
+          do_try_map_index(rest, f, index + 1, [mapped, ..result_so_far])
+        Error(err) -> Error(err)
+      }
+    }
+  }
+}

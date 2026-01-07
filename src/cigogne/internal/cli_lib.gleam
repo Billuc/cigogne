@@ -154,7 +154,7 @@ fn result_to_tuple(value: Result(a, List(b)), default_value: a) -> #(a, List(b))
 fn tuple_to_result(value: #(a, List(b))) -> Result(a, List(b)) {
   case value.1 {
     [] -> Ok(value.0)
-    _ as errs -> Error(errs)
+    errs -> Error(errs)
   }
 }
 

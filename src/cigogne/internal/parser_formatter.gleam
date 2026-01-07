@@ -45,7 +45,9 @@ pub fn parse(
   )
 
   use #(timestamp, name) <- result.try(parse_fullname(filename_without_ext))
-  use #(ups, downs) <- result.try(parse_content(migration_file))
+  use #(ups, downs, disable_transaction) <- result.try(parse_content(
+    migration_file,
+  ))
 
   Ok(migration.Migration(
     migration_file.path,
@@ -53,6 +55,7 @@ pub fn parse(
     name,
     ups,
     downs,
+    disable_transaction,
     utils.make_sha256(migration_file.content),
   ))
 }
@@ -103,7 +106,7 @@ fn parse_timestamp(timestamp_str: String) -> Result(timestamp.Timestamp, Nil) {
 
 fn parse_content(
   file: fs.File,
-) -> Result(#(List(String), List(String)), ParserError) {
+) -> Result(#(List(String), List(String), Bool), ParserError) {
   use #(_, up_and_rest) <- result.try(
     file.content
     |> string.split_once(migration_up_guard)
@@ -120,13 +123,18 @@ fn parse_content(
     |> result.replace_error(MissingEndGuard(file.path)),
   )
 
+  let #(disable_transaction, up) = case up {
+    ":disable_transaction" <> rest -> #(True, rest)
+    _ -> #(False, up)
+  }
+
   use queries_up <- result.try(split_queries(up))
   use queries_down <- result.try(split_queries(down))
 
   case queries_up, queries_down {
     [], _ -> Error(EmptyUpMigration(file.path))
     _, [] -> Error(EmptyDownMigration(file.path))
-    ups, downs -> Ok(#(ups, downs))
+    ups, downs -> Ok(#(ups, downs, disable_transaction))
   }
 }
 
@@ -276,7 +284,10 @@ fn do_split(
 pub fn format(migration: migration.Migration) -> fs.File {
   let content =
     migration_up_guard
-    <> "\n"
+    <> case migration.disable_transaction {
+      True -> ":disable-transaction\n"
+      False -> "\n"
+    }
     <> migration.queries_up |> string.join("\n")
     <> "\n"
     <> migration_down_guard
