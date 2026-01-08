@@ -520,11 +520,10 @@ pub fn apply_migrations(
   engine: MigrationEngine,
   migrations: List(migration.Migration),
 ) -> Result(Nil, CigogneError) {
-  let migration_chunks = list.chunk(migrations, fn(m) { m.disable_transaction })
+  let migration_chunks = migration.chunk_by_transaction_option(migrations)
+  use #(disable_trx, chunk) <- list.try_each(migration_chunks)
 
-  use chunk <- list.try_each(migration_chunks)
-
-  apply_migration_chunk(engine, chunk)
+  apply_migration_chunk(engine, chunk, disable_trx)
   |> result.map_error(DatabaseError)
   |> result.map(fn(_) {
     io.println(
@@ -537,26 +536,22 @@ pub fn apply_migrations(
 fn apply_migration_chunk(
   engine: MigrationEngine,
   migrations: List(migration.Migration),
+  disable_transaction: Bool,
 ) -> Result(Nil, database.DatabaseError) {
-  case migrations {
-    [] -> Ok(Nil)
-    [first, ..] -> {
-      case first.disable_transaction {
-        True -> {
-          use migration <- list.try_each(migrations)
-          io.println("Applying migration " <> migration.to_fullname(migration))
-          database.apply_migration_no_transaction(engine.db_data, migration)
-        }
-        False -> {
-          use transaction <- database.transaction(engine.db_data)
-          let db_data =
-            database.DatabaseData(..engine.db_data, connection: transaction)
-          use migration <- list.try_each(migrations)
+  case disable_transaction {
+    True -> {
+      use migration <- list.try_each(migrations)
+      io.println("Applying migration " <> migration.to_fullname(migration))
+      database.apply_migration_no_transaction(engine.db_data, migration)
+    }
+    False -> {
+      use transaction <- database.transaction(engine.db_data)
+      let db_data =
+        database.DatabaseData(..engine.db_data, connection: transaction)
+      use migration <- list.try_each(migrations)
 
-          io.println("Applying migration " <> migration.to_fullname(migration))
-          database.apply_migration_no_transaction(db_data, migration)
-        }
-      }
+      io.println("Applying migration " <> migration.to_fullname(migration))
+      database.apply_migration_no_transaction(db_data, migration)
     }
   }
 }
@@ -571,15 +566,10 @@ pub fn rollback_migrations(
   engine: MigrationEngine,
   migrations: List(migration.Migration),
 ) -> Result(Nil, CigogneError) {
-  {
-    use transaction <- database.transaction(engine.db_data)
-    let db_data =
-      database.DatabaseData(..engine.db_data, connection: transaction)
-    use migration <- list.try_each(migrations)
+  let migration_chunks = migration.chunk_by_transaction_option(migrations)
+  use #(disable_trx, chunk) <- list.try_each(migration_chunks)
 
-    io.println("Rolling back migration " <> migration.to_fullname(migration))
-    database.rollback_migration_no_transaction(db_data, migration)
-  }
+  rollback_migration_chunk(engine, chunk, disable_trx)
   |> result.map_error(DatabaseError)
   |> result.map(fn(_) {
     io.println(
@@ -587,6 +577,29 @@ pub fn rollback_migrations(
       <> list.map(migrations, migration.to_fullname) |> string.join("\n\t"),
     )
   })
+}
+
+fn rollback_migration_chunk(
+  engine: MigrationEngine,
+  migrations: List(migration.Migration),
+  disable_transaction: Bool,
+) -> Result(Nil, database.DatabaseError) {
+  case disable_transaction {
+    True -> {
+      use migration <- list.try_each(migrations)
+      io.println("Rolling back migration " <> migration.to_fullname(migration))
+      database.rollback_migration_no_transaction(engine.db_data, migration)
+    }
+    False -> {
+      use transaction <- database.transaction(engine.db_data)
+      let db_data =
+        database.DatabaseData(..engine.db_data, connection: transaction)
+      use migration <- list.try_each(migrations)
+
+      io.println("Rolling back migration " <> migration.to_fullname(migration))
+      database.rollback_migration_no_transaction(db_data, migration)
+    }
+  }
 }
 
 /// Get all defined migrations in your project.

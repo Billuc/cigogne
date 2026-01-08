@@ -22,6 +22,8 @@ pub type ParserError {
   MissingEndGuard(filepath: String)
   EmptyUpMigration(filepath: String)
   EmptyDownMigration(filepath: String)
+  MultipleQueriesInNoTransactionMigration(filepath: String)
+  UnknownOption(option: String, filepath: String)
   UnfinishedLiteral(context: String)
   WrongFormat(name: String)
   MigrationError(error: migration.MigrationError)
@@ -106,7 +108,10 @@ fn parse_timestamp(timestamp_str: String) -> Result(timestamp.Timestamp, Nil) {
 
 fn parse_content(
   file: fs.File,
-) -> Result(#(List(String), List(String), Bool), ParserError) {
+) -> Result(
+  #(List(String), List(String), migration.MigrationOptions),
+  ParserError,
+) {
   use #(_, up_and_rest) <- result.try(
     file.content
     |> string.split_once(migration_up_guard)
@@ -123,18 +128,43 @@ fn parse_content(
     |> result.replace_error(MissingEndGuard(file.path)),
   )
 
-  let #(disable_transaction, up) = case up {
-    ":disable_transaction" <> rest -> #(True, rest)
-    _ -> #(False, up)
-  }
+  use #(up_options, up) <- result.try(
+    up
+    |> string.split_once("\n")
+    |> result.replace_error(EmptyUpMigration(file.path)),
+  )
+  use mig_options <- result.try(parse_options(
+    string.trim(up_options),
+    file.path,
+  ))
 
   use queries_up <- result.try(split_queries(up))
   use queries_down <- result.try(split_queries(down))
 
-  case queries_up, queries_down {
-    [], _ -> Error(EmptyUpMigration(file.path))
-    _, [] -> Error(EmptyDownMigration(file.path))
-    ups, downs -> Ok(#(ups, downs, disable_transaction))
+  case queries_up, queries_down, mig_options.disable_transaction {
+    [], _, _ -> Error(EmptyUpMigration(file.path))
+    _, [], _ -> Error(EmptyDownMigration(file.path))
+    ups, downs, False -> Ok(#(ups, downs, mig_options))
+    [up], [down], True -> Ok(#([up], [down], mig_options))
+    _, _, True -> Error(MultipleQueriesInNoTransactionMigration(file.path))
+  }
+}
+
+fn parse_options(
+  options_str: String,
+  filepath: String,
+) -> Result(migration.MigrationOptions, ParserError) {
+  let options = options_str |> string.split(":")
+
+  use mig_options, option <- list.try_fold(
+    options,
+    migration.default_migration_options,
+  )
+
+  case option {
+    "disable-transaction" ->
+      Ok(migration.MigrationOptions(..mig_options, disable_transaction: True))
+    _ -> Error(UnknownOption(option, filepath))
   }
 }
 
@@ -284,7 +314,7 @@ fn do_split(
 pub fn format(migration: migration.Migration) -> fs.File {
   let content =
     migration_up_guard
-    <> case migration.disable_transaction {
+    <> case migration.options.disable_transaction {
       True -> ":disable-transaction\n"
       False -> "\n"
     }
@@ -331,5 +361,11 @@ pub fn get_error_message(error: ParserError) -> String {
       name
       <> " isn't a valid migration name ! It should be YYYYMMDDHHmmss-<NAME>"
     NotASQLFile(filepath:) -> filepath <> " is not a .sql file"
+    MultipleQueriesInNoTransactionMigration(filepath:) ->
+      "In file "
+      <> filepath
+      <> ": Multiple queries found in a migration with disabled transaction"
+    UnknownOption(option:, filepath:) ->
+      "In file " <> filepath <> ": Unknown migration option '" <> option <> "'"
   }
 }
