@@ -29,8 +29,8 @@ jobs:
       - run: psql -f test/setup_test_db.sql postgres://billuc:mysecretpassword@localhost:5432/cigogne_test
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "27.1.2"
-          gleam-version: "1.11.1"
+          otp-version: "28.3"
+          gleam-version: "1.14.0"
           rebar3-version: "3"
           # elixir-version: "1.15.4"
       - run: gleam deps download
