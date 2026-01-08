@@ -133,6 +133,7 @@ pub fn chunk_by_transaction_option(
   migrations: List(Migration),
 ) -> List(#(Bool, List(Migration))) {
   do_chunk_by_transaction_option(migrations, [])
+  |> do_reverse_chunks([])
 }
 
 fn do_chunk_by_transaction_option(
@@ -140,30 +141,37 @@ fn do_chunk_by_transaction_option(
   result_so_far: List(#(Bool, List(Migration))),
 ) -> List(#(Bool, List(Migration))) {
   case migrations, result_so_far {
-    [], _ -> result_so_far |> list.reverse()
+    [], _ -> result_so_far
     [first, ..rest], [] -> {
       let disable_transaction = first.options.disable_transaction
       do_chunk_by_transaction_option(rest, [#(disable_transaction, [first])])
     }
     [first, ..rest], [last_added, ..rest_chunks] -> {
       case first.options.disable_transaction == last_added.0 {
-        True -> {
-          let completed_chunk = [first, ..last_added.1]
-
+        True ->
           do_chunk_by_transaction_option(rest, [
-            #(last_added.0, completed_chunk),
+            #(last_added.0, [first, ..last_added.1]),
             ..rest_chunks
           ])
-        }
         False -> {
           let new_chunk = #(first.options.disable_transaction, [first])
 
-          do_chunk_by_transaction_option(
-            rest,
-            list.append(result_so_far, [new_chunk, ..result_so_far]),
-          )
+          do_chunk_by_transaction_option(rest, [new_chunk, ..result_so_far])
         }
       }
+    }
+  }
+}
+
+fn do_reverse_chunks(
+  chunks: List(#(Bool, List(Migration))),
+  reversed_chunks: List(#(Bool, List(Migration))),
+) -> List(#(Bool, List(Migration))) {
+  case chunks {
+    [] -> reversed_chunks
+    [first, ..rest] -> {
+      let reversed_chunk = #(first.0, list.reverse(first.1))
+      do_reverse_chunks(rest, [reversed_chunk, ..reversed_chunks])
     }
   }
 }

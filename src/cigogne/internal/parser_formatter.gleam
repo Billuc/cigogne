@@ -16,6 +16,8 @@ const migration_down_guard = "--- migration:down"
 
 const migration_end_guard = "--- migration:end"
 
+const disable_transaction_option = "disable_transaction"
+
 pub type ParserError {
   MissingUpGuard(filepath: String)
   MissingDownGuard(filepath: String)
@@ -154,7 +156,10 @@ fn parse_options(
   options_str: String,
   filepath: String,
 ) -> Result(migration.MigrationOptions, ParserError) {
-  let options = options_str |> string.split(":")
+  let options =
+    options_str
+    |> string.split(":")
+    |> list.filter(fn(o) { !string.is_empty(o) })
 
   use mig_options, option <- list.try_fold(
     options,
@@ -162,7 +167,7 @@ fn parse_options(
   )
 
   case option {
-    "disable-transaction" ->
+    o if o == disable_transaction_option ->
       Ok(migration.MigrationOptions(..mig_options, disable_transaction: True))
     _ -> Error(UnknownOption(option, filepath))
   }
@@ -366,6 +371,12 @@ pub fn get_error_message(error: ParserError) -> String {
       <> filepath
       <> ": Multiple queries found in a migration with disabled transaction"
     UnknownOption(option:, filepath:) ->
-      "In file " <> filepath <> ": Unknown migration option '" <> option <> "'"
+      "In file "
+      <> filepath
+      <> ": Unknown migration option '"
+      <> option
+      <> "'. Available options: '"
+      <> disable_transaction_option
+      <> "'."
   }
 }

@@ -71,7 +71,7 @@ pub fn list_chunk_test() {
       "1",
       [],
       [],
-      False,
+      migration.MigrationOptions(False),
       "",
     ),
     migration.Migration(
@@ -80,7 +80,7 @@ pub fn list_chunk_test() {
       "2",
       [],
       [],
-      True,
+      migration.MigrationOptions(True),
       "",
     ),
     migration.Migration(
@@ -89,7 +89,7 @@ pub fn list_chunk_test() {
       "3",
       [],
       [],
-      False,
+      migration.MigrationOptions(False),
       "",
     ),
     migration.Migration(
@@ -98,7 +98,7 @@ pub fn list_chunk_test() {
       "4",
       [],
       [],
-      False,
+      migration.MigrationOptions(False),
       "",
     ),
     migration.Migration(
@@ -107,11 +107,11 @@ pub fn list_chunk_test() {
       "5",
       [],
       [],
-      True,
+      migration.MigrationOptions(True),
       "",
     ),
   ]
 
-  let assert [[m1], [m2], [m3, m4], [m5]] =
-    list.chunk(migs, fn(m) { m.disable_transaction })
+  let assert [[_m1], [_m2], [_m3, _m4], [_m5]] =
+    list.chunk(migs, fn(m) { m.options.disable_transaction })
 }
