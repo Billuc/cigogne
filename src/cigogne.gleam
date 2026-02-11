@@ -520,11 +520,13 @@ pub fn apply_migrations(
   engine: MigrationEngine,
   migrations: List(migration.Migration),
 ) -> Result(Nil, CigogneError) {
-  let migration_chunks = migration.chunk_by_transaction_option(migrations)
-  use #(disable_trx, chunk) <- list.try_each(migration_chunks)
+  {
+    let migration_chunks = migration.chunk_by_transaction_option(migrations)
+    use #(disable_trx, chunk) <- list.try_each(migration_chunks)
 
-  apply_migration_chunk(engine, chunk, disable_trx)
-  |> result.map_error(DatabaseError)
+    apply_migration_chunk(engine, chunk, disable_trx)
+    |> result.map_error(DatabaseError)
+  }
   |> result.map(fn(_) {
     io.println(
       "\nMigrations applied:\n\t"
@@ -566,11 +568,13 @@ pub fn rollback_migrations(
   engine: MigrationEngine,
   migrations: List(migration.Migration),
 ) -> Result(Nil, CigogneError) {
-  let migration_chunks = migration.chunk_by_transaction_option(migrations)
-  use #(disable_trx, chunk) <- list.try_each(migration_chunks)
+  {
+    let migration_chunks = migration.chunk_by_transaction_option(migrations)
+    use #(disable_trx, chunk) <- list.try_each(migration_chunks)
 
-  rollback_migration_chunk(engine, chunk, disable_trx)
-  |> result.map_error(DatabaseError)
+    rollback_migration_chunk(engine, chunk, disable_trx)
+    |> result.map_error(DatabaseError)
+  }
   |> result.map(fn(_) {
     io.println(
       "\nMigrations rolled back:\n\t"

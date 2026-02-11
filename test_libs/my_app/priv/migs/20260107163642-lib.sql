@@ -1,4 +1,4 @@
---- migration:up:disable-transaction
+--- migration:up:disable_transaction
 
 --- 20260107162017-Test3
 CREATE TABLE test3 (

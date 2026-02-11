@@ -369,7 +369,7 @@ pub fn get_error_message(error: ParserError) -> String {
     MultipleQueriesInNoTransactionMigration(filepath:) ->
       "In file "
       <> filepath
-      <> ": Multiple queries found in a migration with disabled transaction"
+      <> ": Multiple queries found in a migration with disabled transaction. Use multiple migrations to support multiple concurrent operations"
     UnknownOption(option:, filepath:) ->
       "In file "
       <> filepath
