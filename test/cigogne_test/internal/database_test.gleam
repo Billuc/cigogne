@@ -3,12 +3,17 @@ import cigogne/internal/database
 import cigogne/migration
 import envoy
 import gleam/erlang/process
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
 import pog
 
 // Modify these constants to match your local database setup
+const db_host = "localhost"
+
+const db_port = 5432
+
 const db_user = "billuc"
 
 const db_password = option.Some("mysecretpassword")
@@ -26,7 +31,11 @@ fn db_url() {
     option.Some(password) -> ":" <> password
     option.None -> ""
   }
-  <> "@localhost:5432/"
+  <> "@"
+  <> db_host
+  <> ":"
+  <> db_port |> int.to_string
+  <> "/"
   <> db_database
 }
 
@@ -50,9 +59,43 @@ pub fn init_with_envvar_test() {
   let init_res = database.init(config)
 
   envoy.unset("DATABASE_URL")
-
   let assert Ok(init_res) = init_res
 
+  assert init_res |> database.migrations_table_exists |> result.is_ok()
+  assert init_res.migrations_table == migration_table
+  assert init_res.db_schema == schema
+}
+
+pub fn init_with_postgres_envvar_test() {
+  envoy.set("PGHOST", db_host)
+  envoy.set("PGUSER", db_user)
+  envoy.set("PGPASSWORD", db_password |> option.unwrap(""))
+  envoy.set("PGDATABASE", db_database)
+  envoy.set("PGPORT", db_port |> int.to_string)
+
+  let config =
+    config.Config(
+      config.EnvVarConfig,
+      config.MigrationTableConfig(
+        option.Some(schema),
+        option.Some(migration_table),
+      ),
+      config.MigrationsConfig(
+        "cigogne",
+        option.Some("test/migrations"),
+        [],
+        option.None,
+      ),
+    )
+  let init_res = database.init(config)
+
+  envoy.unset("PGHOST")
+  envoy.unset("PGUSER")
+  envoy.unset("PGPASSWORD")
+  envoy.unset("PGDATABASE")
+  envoy.unset("PGPORT")
+  let assert Ok(init_res) = init_res
+  assert init_res |> database.migrations_table_exists |> result.is_ok()
   assert init_res.migrations_table == migration_table
   assert init_res.db_schema == schema
 }
