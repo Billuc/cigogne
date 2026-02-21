@@ -305,7 +305,15 @@ pub fn get_applied_migrations(
 fn db_data_to_migration(
   data: #(timestamp.Timestamp, String, String),
 ) -> migration.Migration {
-  migration.Migration("", data.0, data.1, [], [], data.2)
+  migration.Migration(
+    "",
+    data.0,
+    data.1,
+    [],
+    [],
+    migration.default_migration_options,
+    data.2,
+  )
 }
 
 pub fn get_error_message(error: DatabaseError) -> String {

@@ -159,6 +159,17 @@ don't match what is in your database !
 >
 > Command: `gleam run -m cigogne/to_v3`
 
+## Advanced usages
+
+There are some advanced usages that can be activated to respond to specific use-cases.
+They are activated by adding flags after the `migration:up` guard.
+
+> Example: `--- migration:up:disable_transaction`
+
+Currently, those options are available:
+
+- `disable_transaction`: Applies / Rolls back the migration without using a transaction. Only available for single query migrations.
+
 ## Development ideas
 
 If you have feature requests or ideas of improvments, don't hesitate to open an issue.

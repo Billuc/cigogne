@@ -16,12 +16,16 @@ const migration_down_guard = "--- migration:down"
 
 const migration_end_guard = "--- migration:end"
 
+const disable_transaction_option = "disable_transaction"
+
 pub type ParserError {
   MissingUpGuard(filepath: String)
   MissingDownGuard(filepath: String)
   MissingEndGuard(filepath: String)
   EmptyUpMigration(filepath: String)
   EmptyDownMigration(filepath: String)
+  MultipleQueriesInNoTransactionMigration(filepath: String)
+  UnknownOption(option: String, filepath: String)
   UnfinishedLiteral(context: String)
   WrongFormat(name: String)
   MigrationError(error: migration.MigrationError)
@@ -45,7 +49,9 @@ pub fn parse(
   )
 
   use #(timestamp, name) <- result.try(parse_fullname(filename_without_ext))
-  use #(ups, downs) <- result.try(parse_content(migration_file))
+  use #(ups, downs, disable_transaction) <- result.try(parse_content(
+    migration_file,
+  ))
 
   Ok(migration.Migration(
     migration_file.path,
@@ -53,6 +59,7 @@ pub fn parse(
     name,
     ups,
     downs,
+    disable_transaction,
     utils.make_sha256(migration_file.content),
   ))
 }
@@ -103,7 +110,10 @@ fn parse_timestamp(timestamp_str: String) -> Result(timestamp.Timestamp, Nil) {
 
 fn parse_content(
   file: fs.File,
-) -> Result(#(List(String), List(String)), ParserError) {
+) -> Result(
+  #(List(String), List(String), migration.MigrationOptions),
+  ParserError,
+) {
   use #(_, up_and_rest) <- result.try(
     file.content
     |> string.split_once(migration_up_guard)
@@ -120,13 +130,46 @@ fn parse_content(
     |> result.replace_error(MissingEndGuard(file.path)),
   )
 
+  use #(up_options, up) <- result.try(
+    up
+    |> string.split_once("\n")
+    |> result.replace_error(EmptyUpMigration(file.path)),
+  )
+  use mig_options <- result.try(parse_options(
+    string.trim(up_options),
+    file.path,
+  ))
+
   use queries_up <- result.try(split_queries(up))
   use queries_down <- result.try(split_queries(down))
 
-  case queries_up, queries_down {
-    [], _ -> Error(EmptyUpMigration(file.path))
-    _, [] -> Error(EmptyDownMigration(file.path))
-    ups, downs -> Ok(#(ups, downs))
+  case queries_up, queries_down, mig_options.disable_transaction {
+    [], _, _ -> Error(EmptyUpMigration(file.path))
+    _, [], _ -> Error(EmptyDownMigration(file.path))
+    ups, downs, False -> Ok(#(ups, downs, mig_options))
+    [up], [down], True -> Ok(#([up], [down], mig_options))
+    _, _, True -> Error(MultipleQueriesInNoTransactionMigration(file.path))
+  }
+}
+
+fn parse_options(
+  options_str: String,
+  filepath: String,
+) -> Result(migration.MigrationOptions, ParserError) {
+  let options =
+    options_str
+    |> string.split(":")
+    |> list.filter(fn(o) { !string.is_empty(o) })
+
+  use mig_options, option <- list.try_fold(
+    options,
+    migration.default_migration_options,
+  )
+
+  case option {
+    o if o == disable_transaction_option ->
+      Ok(migration.MigrationOptions(..mig_options, disable_transaction: True))
+    _ -> Error(UnknownOption(option, filepath))
   }
 }
 
@@ -276,7 +319,10 @@ fn do_split(
 pub fn format(migration: migration.Migration) -> fs.File {
   let content =
     migration_up_guard
-    <> "\n"
+    <> case migration.options.disable_transaction {
+      True -> ":disable-transaction\n"
+      False -> "\n"
+    }
     <> migration.queries_up |> string.join("\n")
     <> "\n"
     <> migration_down_guard
@@ -320,5 +366,17 @@ pub fn get_error_message(error: ParserError) -> String {
       name
       <> " isn't a valid migration name ! It should be YYYYMMDDHHmmss-<NAME>"
     NotASQLFile(filepath:) -> filepath <> " is not a .sql file"
+    MultipleQueriesInNoTransactionMigration(filepath:) ->
+      "In file "
+      <> filepath
+      <> ": Multiple queries found in a migration with disabled transaction. Use multiple migrations to support multiple concurrent operations"
+    UnknownOption(option:, filepath:) ->
+      "In file "
+      <> filepath
+      <> ": Unknown migration option '"
+      <> option
+      <> "'. Available options: '"
+      <> disable_transaction_option
+      <> "'."
   }
 }

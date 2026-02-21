@@ -49,7 +49,17 @@ fn get_applied_migrations(db_data: database.DatabaseData) {
   |> result.map_error(database.PogQueryError)
   |> result.map(fn(returned) {
     returned.rows
-    |> list.map(fn(data) { migration.Migration("", data.0, data.1, [], [], "") })
+    |> list.map(fn(data) {
+      migration.Migration(
+        "",
+        data.0,
+        data.1,
+        [],
+        [],
+        migration.default_migration_options,
+        "",
+      )
+    })
   })
 }
 

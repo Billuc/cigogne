@@ -1,5 +1,6 @@
 import cigogne/internal/utils
 import gleam/int
+import gleam/result
 import gleam/string
 import gleam/time/calendar
 import gleam/time/timestamp
@@ -97,4 +98,21 @@ pub fn get_results_or_errors_test() {
 
   assert utils.get_results_or_errors(results) == Error(["err1", "err2"])
   assert utils.get_results_or_errors(ok_results) == Ok([1, 2, 3])
+}
+
+pub fn try_map_index_test() {
+  let list1 = ["10", "20", "thirty", "40"]
+  let list2 = ["1", "2", "3", "4"]
+
+  let parse_fn = fn(s, index) {
+    int.parse(s)
+    |> result.map(fn(v) { v + index })
+    |> result.replace_error(index)
+  }
+
+  let result1 = utils.try_map_index(list1, parse_fn)
+  let result2 = utils.try_map_index(list2, parse_fn)
+
+  assert result1 == Error(2)
+  assert result2 == Ok([1, 3, 5, 7])
 }

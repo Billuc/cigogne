@@ -1,5 +1,7 @@
 import cigogne
 import cigogne/config
+import cigogne/migration
+import gleam/list
 import gleam/option
 import gleam/string
 import gleam/time/timestamp
@@ -59,4 +61,57 @@ pub fn read_migrations_test() {
     == ["alter table todos drop column tag;", "drop table tags;"]
   assert mig2.sha256
     == "54FC9D43672C5726D2165D33F7A20B596F061DE2237F036B937B2AFB19D9DCB8"
+}
+
+pub fn list_chunk_test() {
+  let migs = [
+    migration.Migration(
+      "",
+      timestamp.from_unix_seconds(1),
+      "1",
+      [],
+      [],
+      migration.MigrationOptions(False),
+      "",
+    ),
+    migration.Migration(
+      "",
+      timestamp.from_unix_seconds(2),
+      "2",
+      [],
+      [],
+      migration.MigrationOptions(True),
+      "",
+    ),
+    migration.Migration(
+      "",
+      timestamp.from_unix_seconds(3),
+      "3",
+      [],
+      [],
+      migration.MigrationOptions(False),
+      "",
+    ),
+    migration.Migration(
+      "",
+      timestamp.from_unix_seconds(4),
+      "4",
+      [],
+      [],
+      migration.MigrationOptions(False),
+      "",
+    ),
+    migration.Migration(
+      "",
+      timestamp.from_unix_seconds(5),
+      "5",
+      [],
+      [],
+      migration.MigrationOptions(True),
+      "",
+    ),
+  ]
+
+  let assert [[_m1], [_m2], [_m3, _m4], [_m5]] =
+    list.chunk(migs, fn(m) { m.options.disable_transaction })
 }

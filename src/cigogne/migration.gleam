@@ -20,9 +20,20 @@ pub type Migration {
     name: String,
     queries_up: List(String),
     queries_down: List(String),
+    options: MigrationOptions,
     sha256: String,
   )
 }
+
+/// Options for a migration.
+/// Options are activated by adding flags after "--- migration:up" 
+pub type MigrationOptions {
+  MigrationOptions(disable_transaction: Bool)
+}
+
+pub const default_migration_options = MigrationOptions(
+  disable_transaction: False,
+)
 
 /// Errors that can happen when manipulating migrations.
 pub type MigrationError {
@@ -49,6 +60,7 @@ pub fn new(
       name:,
       queries_up: [],
       queries_down: [],
+      options: default_migration_options,
       sha256: "",
     )
 
@@ -104,25 +116,93 @@ pub fn compare(migration_a: Migration, migration_b: Migration) -> order.Order {
   |> order.break_tie(string.compare(migration_a.name, migration_b.name))
 }
 
-/// Merge multiple migrations into a single one, concatenating their up and down queries.
-/// The resulting migration will have an empty path and sha256 hash.
-/// The provided timestamp and name will be used for the resulting migration.
+/// Merge multiple migrations into a list of queries up, queries down and disable_transaction.
 pub fn merge(
   migrations: List(Migration),
-  timestamp: timestamp.Timestamp,
-  name: String,
-) -> Result(Migration, MigrationError) {
-  use name <- result.try(check_name(name))
+) -> Result(
+  List(#(List(String), List(String), MigrationOptions)),
+  MigrationError,
+) {
   use <- bool.guard(list.is_empty(migrations), Error(NothingToMergeError))
 
-  let #(ups, downs) = merge_migration_contents(migrations)
-  let hash = ""
-
-  Ok(Migration("", timestamp, name, ups, downs, hash))
+  Ok(merge_migration_contents(migrations))
 }
 
-fn merge_migration_contents(migrations: List(Migration)) {
-  do_merge_contents(migrations, #([], []))
+/// Chunk a list of migrations into multiple lists depending on their disable_transaction option
+pub fn chunk_by_transaction_option(
+  migrations: List(Migration),
+) -> List(#(Bool, List(Migration))) {
+  do_chunk_by_transaction_option(migrations, [])
+  |> do_reverse_chunks([])
+}
+
+fn do_chunk_by_transaction_option(
+  migrations: List(Migration),
+  result_so_far: List(#(Bool, List(Migration))),
+) -> List(#(Bool, List(Migration))) {
+  case migrations, result_so_far {
+    [], _ -> result_so_far
+    [first, ..rest], [] -> {
+      let disable_transaction = first.options.disable_transaction
+      do_chunk_by_transaction_option(rest, [#(disable_transaction, [first])])
+    }
+    [first, ..rest], [last_added, ..rest_chunks] -> {
+      case first.options.disable_transaction == last_added.0 {
+        True ->
+          do_chunk_by_transaction_option(rest, [
+            #(last_added.0, [first, ..last_added.1]),
+            ..rest_chunks
+          ])
+        False -> {
+          let new_chunk = #(first.options.disable_transaction, [first])
+
+          do_chunk_by_transaction_option(rest, [new_chunk, ..result_so_far])
+        }
+      }
+    }
+  }
+}
+
+fn do_reverse_chunks(
+  chunks: List(#(Bool, List(Migration))),
+  reversed_chunks: List(#(Bool, List(Migration))),
+) -> List(#(Bool, List(Migration))) {
+  case chunks {
+    [] -> reversed_chunks
+    [first, ..rest] -> {
+      let reversed_chunk = #(first.0, list.reverse(first.1))
+      do_reverse_chunks(rest, [reversed_chunk, ..reversed_chunks])
+    }
+  }
+}
+
+fn merge_migration_contents(
+  migrations: List(Migration),
+) -> List(#(List(String), List(String), MigrationOptions)) {
+  let migration_chunks = chunk_by_transaction_option(migrations)
+
+  use #(disable_trx, chunk) <- list.flat_map(migration_chunks)
+
+  case disable_trx {
+    True -> {
+      chunk
+      |> list.map(fn(mig) {
+        let migration_name = to_fullname(mig)
+
+        #(
+          ["\n--- " <> migration_name, ..mig.queries_up],
+          ["\n--- " <> migration_name, ..mig.queries_down],
+          mig.options,
+        )
+      })
+    }
+    False -> {
+      let #(ups, downs) = do_merge_contents(chunk, #([], []))
+      // TODO : replace with proper options merging
+      let options = default_migration_options
+      [#(ups, downs, options)]
+    }
+  }
 }
 
 fn do_merge_contents(
@@ -132,8 +212,8 @@ fn do_merge_contents(
   case migrations {
     [] -> contents
     [mig, ..rest] -> {
-      let migration_name = to_fullname(mig)
       let #(ups, downs) = contents
+      let migration_name = to_fullname(mig)
 
       let mig_ups = ["\n--- " <> migration_name, ..mig.queries_up]
       let ups = list.append(ups, mig_ups)
@@ -204,6 +284,7 @@ pub fn create_zero_migration(
     name,
     queries_up,
     queries_down,
+    default_migration_options,
     utils.make_sha256(
       queries_up |> string.join(";") <> queries_down |> string.join(";"),
     ),
