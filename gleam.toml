@@ -18,7 +18,7 @@ internal_modules = [
 ]
 
 [dependencies]
-gleam_stdlib = ">= 0.60.0 and < 1.0.0"
+gleam_stdlib = ">= 0.60.0 and < 2.0.0"
 argv = ">= 1.0.2 and < 2.0.0"
 pog = ">= 4.0.0 and < 5.0.0"
 envoy = ">= 1.0.2 and < 2.0.0"
